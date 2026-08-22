@@ -7,9 +7,28 @@ from mediapipe.tasks.python import vision
 
 base_options = python.BaseOptions(model_asset_path = "hand_landmarker.task")
 
-options = vision.HandLandmarkerOptions(base_options=base_options, num_hands=1,running_mode=vision.RunningMode.VIDEO)
+options = vision.HandLandmarkerOptions(base_options=base_options, num_hands=2,running_mode=vision.RunningMode.VIDEO)
 
 detector = vision.HandLandmarker.create_from_options(options)
+
+mp_drawing = mp.tasks.vision.drawing_utils
+
+mp_hands = mp.tasks.vision.HandLandmarksConnections
+
+mp_drawing_styles = mp.tasks.vision.drawing_styles
+
+# landmark_look = mp_drawing.DrawingSpec(
+#     color=(255, 255, 0),   
+#     thickness=5,
+#     circle_radius=2
+# )
+
+# connections_look = mp_drawing.DrawingSpec(
+#     color=(0, 0, 255),  
+#     thickness=3
+# )
+
+
 
 cam = cv2.VideoCapture(0)
 
@@ -20,6 +39,7 @@ while cam.isOpened():
         break
 
     frame = cv2.flip(frame, 1)
+    h,w,_ = frame.shape 
 
     rgb_frame = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
 
@@ -37,6 +57,15 @@ while cam.isOpened():
                 z = landmark.z
 
                 print(x,y,z)
+
+                pixel_x = int(x*w)
+                pixel_y = int(y*h)
+
+                print(pixel_x , pixel_y )
+
+            mp_drawing.draw_landmarks(frame, hand_landmarks,mp_hands.HAND_CONNECTIONS,mp_drawing_styles.get_default_hand_landmarks_style(),mp_drawing_styles.get_default_hand_connections_style())
+
+            # mp_drawing.draw_landmarks(frame, hand_landmarks,mp_hands.HAND_CONNECTIONS, landmark_look, connections_look )
 
     else :
         print("No Hand Detected")

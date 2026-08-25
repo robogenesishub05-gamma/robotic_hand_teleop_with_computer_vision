@@ -1,0 +1,133 @@
+import cv2
+import time
+import math 
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+
+
+base_options = python.BaseOptions(model_asset_path = "hand_landmarker.task")
+
+options = vision.HandLandmarkerOptions(base_options=base_options, num_hands=1,running_mode=vision.RunningMode.VIDEO)
+
+detector = vision.HandLandmarker.create_from_options(options)
+
+mp_drawing = mp.tasks.vision.drawing_utils
+
+mp_hands = mp.tasks.vision.HandLandmarksConnections
+
+mp_drawing_styles = mp.tasks.vision.drawing_styles
+
+angle_joints = [3,6,10,14,18]
+
+# landmark_look = mp_drawing.DrawingSpec(
+#     color=(255, 255, 0),   
+#     thickness=5,
+#     circle_radius=2
+# )
+
+# connections_look = mp_drawing.DrawingSpec(
+#     color=(0, 0, 255),  
+#     thickness=3
+# )
+
+def angle_finder(joint,n1,n2):
+    v1 = ((n1[0] - joint[0]) , (n1[1] - joint[1]) )
+    v2 = ((n2[0] - joint[0]) , (n2[1] - joint[1]) )
+
+    dot = (v1[0] * v2[0]) + (v1[1] * v2[1])
+
+    m1 = math.sqrt((v1[0] ** 2 )+ (v1[1] ** 2))
+    m2 = math.sqrt((v2[0] ** 2 )+ (v2[1] ** 2))
+
+    cos = dot /(m1 * m2)
+    cos = max(-1.0, min(1.0, cos))
+
+    rad_angle = math.acos(cos)
+    deg_angle = math.degrees(rad_angle)
+
+    return deg_angle
+
+
+
+cam = cv2.VideoCapture(0)
+
+while cam.isOpened():
+    success , frame = cam.read()
+
+    if not success  :
+        break
+
+    frame = cv2.flip(frame, 1)
+    h,w,_ = frame.shape 
+
+    rgb_frame = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
+
+    mp_img = mp.Image(mp.ImageFormat.SRGB,rgb_frame)
+
+    timestamp_ms = int(time.time() * 1000)
+
+    result = detector.detect_for_video(mp_img,timestamp_ms)
+
+    if result.hand_landmarks:
+        for hand_landmarks in result.hand_landmarks :
+            for landmark_id , landmark in enumerate(hand_landmarks):
+                if landmark_id in angle_joints:
+                    # pixel_x = int(landmark.x*w)
+                    # pixel_y = int(landmark.y*h)
+
+                    j_cords = (int(landmark.x*w) , int(landmark.y*h))
+
+                    landmark_n1 = hand_landmarks[landmark_id + 1]
+
+                    n1_cords = (int(landmark_n1.x*w) , int(landmark_n1.y*h))
+
+                    landmark_n2 = hand_landmarks[landmark_id - 1]
+
+                    n2_cords = (int(landmark_n2.x*w) , int(landmark_n2.y*h))
+
+                    result_angle =  angle_finder(j_cords,n1_cords,n2_cords)
+
+                    print(f"ID: {landmark_id}  Angle: {result_angle}")
+
+
+
+                    # print(landmark_id)
+                    # print(pixel_x , pixel_y )
+                    
+
+                # x = landmark.x
+                # y = landmark.y
+                # z = landmark.z
+
+                # print(landmark_id)
+                # print(landmark)
+
+                # print(hand_landmarks)
+
+                # pixel_x = int(x*w)
+                # pixel_y = int(y*h)
+
+                # print(landmark_id)
+                # print(pixel_x , pixel_y )
+
+            mp_drawing.draw_landmarks(frame, hand_landmarks,mp_hands.HAND_CONNECTIONS,mp_drawing_styles.get_default_hand_landmarks_style(),mp_drawing_styles.get_default_hand_connections_style())
+
+            # mp_drawing.draw_landmarks(frame, hand_landmarks,mp_hands.HAND_CONNECTIONS, landmark_look, connections_look )
+
+    else :
+        print("No Hand Detected")
+
+    cv2.imshow("Varad", frame)
+
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
+
+
+
+
+
+
+
+cam.release()
+cv2.destroyAllWindows()

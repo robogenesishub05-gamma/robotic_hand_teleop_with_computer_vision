@@ -1,5 +1,6 @@
 import cv2
 import time
+import numpy as np 
 import math 
 import mediapipe as mp
 from mediapipe.tasks import python
@@ -11,7 +12,7 @@ frame_w = 680
 
 base_options = python.BaseOptions(model_asset_path = "hand_landmarker.task")
 
-options = vision.HandLandmarkerOptions(base_options=base_options, num_hands=2,running_mode=vision.RunningMode.VIDEO)
+options = vision.HandLandmarkerOptions(base_options=base_options, num_hands=1,running_mode=vision.RunningMode.VIDEO)
 
 detector = vision.HandLandmarker.create_from_options(options)
 
@@ -40,6 +41,9 @@ closed_values = {3: 145, 6: 133, 10: 122, 14: 138, 18: 140}
 
 pinch_close = {8: 0.030, 12: 0.035, 16: 0.025, 20: 0.030}
 pinch_open = {8: 0.055, 12: 0.060, 16: 0.050, 20: 0.055}
+
+angle_min = {3: 115, 6: 95, 10: 90, 14: 95, 18: 95}
+angle_max = {3: 180, 6: 175, 10: 165, 14: 177, 18: 172}
 
 def angle_finder(joint,n1,n2):
     v1 = ((n1[0] - joint[0]) , (n1[1] - joint[1]) , (n1[2] - joint[2]))
@@ -86,52 +90,70 @@ def gesture_finder(dict):
 
     # Fist
     elif (dict["thumb_bend"] == True and
-          dict["index_bend"] == True and
-          dict["middle_bend"] == True and
-          dict["ring_bend"] == True and
-          dict["pinky_bend"] == True):
+        dict["index_bend"] == True and
+        dict["middle_bend"] == True and
+        dict["ring_bend"] == True and
+        dict["pinky_bend"] == True):
 
         return "Fist"
 
 
     # Point
     elif (dict["thumb_bend"] == True and
-          dict["index_bend"] == False and
-          dict["middle_bend"] == True and
-          dict["ring_bend"] == True and
-          dict["pinky_bend"] == True):
+        dict["index_bend"] == False and
+        dict["middle_bend"] == True and
+        dict["ring_bend"] == True and
+        dict["pinky_bend"] == True):
 
         return "Point"
 
 
     # Peace
     elif (dict["thumb_bend"] == True and
-          dict["index_bend"] == False and
-          dict["middle_bend"] == False and
-          dict["ring_bend"] == True and
-          dict["pinky_bend"] == True):
+        dict["index_bend"] == False and
+        dict["middle_bend"] == False and
+        dict["ring_bend"] == True and
+        dict["pinky_bend"] == True):
 
         return "Peace"
 
 
     # Thumbs Up
     elif (dict["thumb_bend"] == False and
-          dict["index_bend"] == True and
-          dict["middle_bend"] == True and
-          dict["ring_bend"] == True and
-          dict["pinky_bend"] == True):
+        dict["index_bend"] == True and
+        dict["middle_bend"] == True and
+        dict["ring_bend"] == True and
+        dict["pinky_bend"] == True):
 
         return "Thumbs Up"
 
     # Middle Finger
     elif (dict["thumb_bend"] == True and
-          dict["index_bend"] == True and
-          dict["middle_bend"] == False and
-          dict["ring_bend"] == True and
-          dict["pinky_bend"] == True):
+        dict["index_bend"] == True and
+        dict["middle_bend"] == False and
+        dict["ring_bend"] == True and
+        dict["pinky_bend"] == True):
 
         return "No bad words"
 
+
+    # rock on 
+    elif(dict["thumb_bend"] == True and
+        dict["index_bend"] == False and
+        dict["middle_bend"] == True and
+        dict["ring_bend"] == True and
+        dict["pinky_bend"] == False):
+
+        return "Rock On"
+    
+    # Call
+    elif(dict["thumb_bend"] == False and
+        dict["index_bend"] == True and
+        dict["middle_bend"] == True and
+        dict["ring_bend"] == True and
+        dict["pinky_bend"] == False):
+
+        return "Call"
     
     # Index Finger Pinch
     elif (dict["index_pinch"] == True):
@@ -141,11 +163,14 @@ def gesture_finder(dict):
     else:
         return "Unknown"
 
-cam = cv2.VideoCapture(1)
+cam = cv2.VideoCapture(0)
 
 finger_states = {3: False, 6: False, 10: False, 14: False, 18: False}
 pinch_states = {8: False, 12: False, 16: False, 20: False}
 
+current_gesture = "NO HAND"
+current_angles_raw = {3: 0.0, 6: 0.0, 10: 0.0, 14: 0.0, 18: 0.0}
+current_angles = {3: 0.0, 6: 0.0, 10: 0.0, 14: 0.0, 18: 0.0}
 
 while cam.isOpened():
     success , frame = cam.read()
@@ -188,6 +213,20 @@ while cam.isOpened():
 
                     result_angle =  angle_finder(j_cords,n1_cords,n2_cords)
 
+                    current_angles_raw[landmark_id] = result_angle
+
+                    in_min = angle_min[landmark_id]
+                    in_max = angle_max[landmark_id]
+
+                    out_min = 0
+                    out_max = 180
+
+                    fraction = (result_angle - in_min) / (in_max - in_min)
+                    output = out_min + fraction * (out_max - out_min)
+                    output = max(0, min(180, output))
+
+                    current_angles[landmark_id] = output
+
                     finger_states[landmark_id] = latency_checker(result_angle, closed_values[landmark_id], open_values[landmark_id], finger_states[landmark_id])
 
                     # print(f"ID: {finger_id}  Bent: {verdict} Angle: {result_angle} ")
@@ -196,6 +235,7 @@ while cam.isOpened():
 
                     # print(landmark_id)
                     # print(pixel_x , pixel_y )
+
                 
             thumb_tip = (hand_world_landmarks[4].x, hand_world_landmarks[4].y, hand_world_landmarks[4].z)
 
@@ -203,7 +243,6 @@ while cam.isOpened():
                 tip_point = (hand_world_landmarks[tip_id].x, hand_world_landmarks[tip_id].y, hand_world_landmarks[tip_id].z)
                 distance = dist_finder(thumb_tip,tip_point)
                 pinch_states[tip_id] = latency_checker(distance, pinch_close[tip_id], pinch_open[tip_id], pinch_states[tip_id])
-
 
 
 
@@ -220,6 +259,7 @@ while cam.isOpened():
             }
 
             gesture = gesture_finder(signals)
+            current_gesture = gesture
 
             print(f"Thumb:{signals['thumb_bend']} Index:{signals['index_bend']} Middle:{signals['middle_bend']} Ring:{signals['ring_bend']} Pinky:{signals['pinky_bend']} | Idx-Pinch:{signals['index_pinch']} Mid-Pinch:{signals['middle_pinch']} Ring-Pinch:{signals['ring_pinch']} Pnk-Pinch:{signals['pinky_pinch']} Gesture:{gesture}")
 
@@ -249,13 +289,41 @@ while cam.isOpened():
 
     else :
         print("No Hand Detected")
+        current_gesture = "NO HAND"
+        current_angles_raw = {3: 180.0, 6: 180.0, 10: 180.0, 14: 180.0, 18: 180.0}
+        current_angles = {3: 180.0, 6: 180.0, 10: 180.0, 14: 180.0, 18: 180.0}
+    
+    print(current_angles)
+      
+    TOP_BAR_H = 100
+    BOTTOM_BAR_H = 50
+    CANVAS_W = frame_w
+    CANVAS_H = frame_h + TOP_BAR_H + BOTTOM_BAR_H
 
-    cv2.imshow("Varad", frame)
+    canvas = np.zeros((CANVAS_H, CANVAS_W, 3), dtype=np.uint8)
+    canvas[:] = (35, 35, 35)
+
+
+    canvas[TOP_BAR_H : TOP_BAR_H + frame_h, 0 : CANVAS_W] = frame
+
+
+                
+    cv2.putText(canvas, f"Gesture: {current_gesture.upper()}", (15, 75), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
+
+
+    telemetry_raw = f"T:{int(current_angles_raw[3])} I:{int(current_angles_raw[6])} M:{int(current_angles_raw[10])} R:{int(current_angles_raw[14])} P:{int(current_angles_raw[18])}"
+    telemetry = f"T:{int(current_angles[3])} I:{int(current_angles[6])} M:{int(current_angles[10])} R:{int(current_angles[14])} P:{int(current_angles[18])}"
+
+    cv2.putText(canvas, telemetry, (15, CANVAS_H - 15), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 191, 0), 2, cv2.LINE_AA)
+
+
+
+    cv2.imshow("Hand Landmark & Finger Angle Tracker", canvas)
 
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
-
-
 
 
 

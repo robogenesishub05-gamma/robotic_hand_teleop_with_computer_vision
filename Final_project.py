@@ -2,9 +2,20 @@ import cv2
 import time
 import numpy as np 
 import math 
+import socket 
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+
+
+ESP_IP = "127.0.0.1"
+ESP_PORT = 5005
+
+SEND_TO_ESP = True
+
+
+
+
 
 frame_h = 600
 
@@ -168,9 +179,30 @@ cam = cv2.VideoCapture(0)
 finger_states = {3: False, 6: False, 10: False, 14: False, 18: False}
 pinch_states = {8: False, 12: False, 16: False, 20: False}
 
+signals = {
+    "thumb_bend": finger_states[3],
+    "index_bend": finger_states[6],
+    "middle_bend": finger_states[10],
+    "ring_bend": finger_states[14],
+    "pinky_bend": finger_states[18],
+    "index_pinch": pinch_states[8],
+    "middle_pinch": pinch_states[12],
+    "ring_pinch": pinch_states[16],
+    "pinky_pinch": pinch_states[20],
+}
+
 current_gesture = "NO HAND"
 current_angles_raw = {3: 0.0, 6: 0.0, 10: 0.0, 14: 0.0, 18: 0.0}
 current_angles = {3: 0.0, 6: 0.0, 10: 0.0, 14: 0.0, 18: 0.0}
+
+alpha = 0.2
+smoothed_angles = {}
+smoothed_init = False
+
+
+sender_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) 
+
+last_send_time = 0 
 
 while cam.isOpened():
     success , frame = cam.read()
@@ -227,16 +259,15 @@ while cam.isOpened():
 
                     current_angles[landmark_id] = output
 
+                    if not smoothed_init:
+                        smoothed_angles[landmark_id] = output
+                    else :
+                        smoothed_angles[landmark_id] = alpha * output + (1-alpha) * smoothed_angles[landmark_id]
+
                     finger_states[landmark_id] = latency_checker(result_angle, closed_values[landmark_id], open_values[landmark_id], finger_states[landmark_id])
 
-                    # print(f"ID: {finger_id}  Bent: {verdict} Angle: {result_angle} ")
-                    
-                    # print(f"ID: {landmark_id}  Angle: {result_angle}")
+            smoothed_init = True 
 
-                    # print(landmark_id)
-                    # print(pixel_x , pixel_y )
-
-                
             thumb_tip = (hand_world_landmarks[4].x, hand_world_landmarks[4].y, hand_world_landmarks[4].z)
 
             for tip_id in tips:
@@ -258,29 +289,7 @@ while cam.isOpened():
                 "pinky_pinch": pinch_states[20],
             }
 
-            gesture = gesture_finder(signals)
-            current_gesture = gesture
-
-            print(f"Thumb:{signals['thumb_bend']} Index:{signals['index_bend']} Middle:{signals['middle_bend']} Ring:{signals['ring_bend']} Pinky:{signals['pinky_bend']} | Idx-Pinch:{signals['index_pinch']} Mid-Pinch:{signals['middle_pinch']} Ring-Pinch:{signals['ring_pinch']} Pnk-Pinch:{signals['pinky_pinch']} Gesture:{gesture}")
-
-                    # print(landmark_id)
-                    # print(pixel_x , pixel_y )
-                    
-
-                # x = landmark.x
-                # y = landmark.y
-                # z = landmark.z
-
-                # print(landmark_id)
-                # print(landmark)
-
-                # print(hand_landmarks)
-
-                # pixel_x = int(x*w)
-                # pixel_y = int(y*h)
-
-                # print(landmark_id)
-                # print(pixel_x , pixel_y )
+            current_gesture = gesture_finder(signals)
 
 
             mp_drawing.draw_landmarks(frame, hand_landmarks,mp_hands.HAND_CONNECTIONS,mp_drawing_styles.get_default_hand_landmarks_style(),mp_drawing_styles.get_default_hand_connections_style())
@@ -292,9 +301,25 @@ while cam.isOpened():
         current_gesture = "NO HAND"
         current_angles_raw = {3: 180.0, 6: 180.0, 10: 180.0, 14: 180.0, 18: 180.0}
         current_angles = {3: 180.0, 6: 180.0, 10: 180.0, 14: 180.0, 18: 180.0}
+        smoothed_angles = {3: 180.0, 6: 180.0, 10: 180.0, 14: 180.0, 18: 180.0}
+        smoothed_init = False
+
+    msg = f"{smoothed_angles[3]:.1f},{smoothed_angles[6]:.1f},{smoothed_angles[10]:.1f},{smoothed_angles[14]:.1f},{smoothed_angles[18]:.1f}"
+
+    if time.time() - last_send_time >= 1/30:
+        last_send_time = time.time()
+        if SEND_TO_ESP :
+            byte_msg = msg.encode()
+
+            sender_socket.sendto(byte_msg,(ESP_IP , ESP_PORT))
+
+        else : 
+            print(f"The following message would have been sent to the ESP : {msg}")
+            print(f"Thumb:{signals['thumb_bend']} Index:{signals['index_bend']} Middle:{signals['middle_bend']} Ring:{signals['ring_bend']} Pinky:{signals['pinky_bend']} | Idx-Pinch:{signals['index_pinch']} Mid-Pinch:{signals['middle_pinch']} Ring-Pinch:{signals['ring_pinch']} Pnk-Pinch:{signals['pinky_pinch']} Gesture:{current_gesture}")
+
+
+
     
-    print(current_angles)
-      
     TOP_BAR_H = 100
     BOTTOM_BAR_H = 50
     CANVAS_W = frame_w
@@ -314,8 +339,11 @@ while cam.isOpened():
 
     telemetry_raw = f"T:{int(current_angles_raw[3])} I:{int(current_angles_raw[6])} M:{int(current_angles_raw[10])} R:{int(current_angles_raw[14])} P:{int(current_angles_raw[18])}"
     telemetry = f"T:{int(current_angles[3])} I:{int(current_angles[6])} M:{int(current_angles[10])} R:{int(current_angles[14])} P:{int(current_angles[18])}"
+    telemetry_smoothed = f"T:{int(smoothed_angles[3])} I:{int(smoothed_angles[6])} M:{int(smoothed_angles[10])} R:{int(smoothed_angles[14])} P:{int(smoothed_angles[18])}"
 
-    cv2.putText(canvas, telemetry, (15, CANVAS_H - 15), 
+
+
+    cv2.putText(canvas, telemetry_smoothed, (15, CANVAS_H - 15), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 191, 0), 2, cv2.LINE_AA)
 
 
@@ -326,8 +354,6 @@ while cam.isOpened():
         break
 
 
-
-
-
+sender_socket.close()
 cam.release()
 cv2.destroyAllWindows()

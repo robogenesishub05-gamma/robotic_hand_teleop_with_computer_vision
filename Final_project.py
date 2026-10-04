@@ -9,6 +9,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
 
+
 ESP_IP = "192.168.1.5"
 ESP_PORT = 5005
 
@@ -129,6 +130,21 @@ def gesture_finder(dict):
 
         return "Peace"
 
+    elif(dict["thumb_bend"] == True and
+        dict["index_bend"] == False and
+        dict["middle_bend"] == False and
+        dict["ring_bend"] == False and
+        dict["pinky_bend"] == True):
+
+        return "British Three"
+
+    elif(dict["thumb_bend"] == False and
+        dict["index_bend"] == False and
+        dict["middle_bend"] == False and
+        dict["ring_bend"] == True and
+        dict["pinky_bend"] == True):
+
+        return "German Three"
 
     # Thumbs Up
     elif (dict["thumb_bend"] == False and
@@ -176,45 +192,79 @@ def gesture_finder(dict):
         return "Unknown"
 
 
-def update_angle_monitor():
+def dashboard(frame):
 
-    monitor = np.zeros((300, 650, 3), dtype=np.uint8)
-    monitor[:] = (35, 35, 35)
+    dashboard_w = 1250
+    dashboard_h = 775
 
-  
+    canvas = np.zeros((dashboard_h, dashboard_w, 3), dtype=np.uint8)
+    canvas[:] = (35, 35, 35)
+
+    # =========================================================
+    # CAMERA
+    # =========================================================
+
+    canvas[125 : 125 + frame_h, 0 : frame_w] = frame
+
+    # =========================================================
+    # RIGHT PANEL
+    # =========================================================
+
+    panel_x = frame_w
+    panel_y = 125
+    panel_w = dashboard_w - frame_w
+    panel_h = frame_h
+
+    cv2.rectangle(
+        canvas,
+        (panel_x, panel_y),
+        (dashboard_w, panel_y + panel_h),
+        (45, 45, 45),
+        -1
+    )
+
+    # =========================================================
+    # ANGLE MONITOR
+    # =========================================================
+
     cv2.putText(
-        monitor,
+        canvas,
         "ANGLE MONITOR",
-        (20, 35),
+        (panel_x + 20, panel_y + 35),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.8,
+        0.75,
         (255, 255, 255),
         2,
         cv2.LINE_AA
     )
 
-    
-    x_finger = 20
-    x_current = 150
-    x_close = 290
-    x_open = 410
-    x_state = 520
+    x_finger = panel_x + 15
+    x_raw = panel_x + 130
+    x_close = panel_x + 230
+    x_open = panel_x + 325
+    x_state = panel_x + 430
 
-    
-    cv2.putText(monitor, "Finger",  (x_finger, 70),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+    header_y = panel_y + 70
 
-    cv2.putText(monitor, "RAW", (x_current, 70),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+    cv2.putText(canvas, "Finger", (x_finger, header_y),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                (200, 200, 200), 1)
 
-    cv2.putText(monitor, "CLOSE",   (x_close, 70),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+    cv2.putText(canvas, "RAW", (x_raw, header_y),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                (200, 200, 200), 1)
 
-    cv2.putText(monitor, "OPEN",    (x_open, 70),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+    cv2.putText(canvas, "CLOSE", (x_close, header_y),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                (200, 200, 200), 1)
 
-    cv2.putText(monitor, "STATE",   (x_state, 70),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+    cv2.putText(canvas, "OPEN", (x_open, header_y),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                (200, 200, 200), 1)
+
+    cv2.putText(canvas, "STATE", (x_state, header_y),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                (200, 200, 200), 1)
 
     fingers = [
         ("Thumb", 3),
@@ -224,7 +274,7 @@ def update_angle_monitor():
         ("Pinky", 18)
     ]
 
-    y = 110
+    y = panel_y + 105
 
     for name, landmark_id in fingers:
 
@@ -232,56 +282,268 @@ def update_angle_monitor():
         close_threshold = closed_values[landmark_id]
         open_threshold = open_values[landmark_id]
 
-        # False = OPEN
-        # True  = CLOSED
         state = finger_states[landmark_id]
-
         state_text = "CLOSED" if state else "OPEN"
 
-        
-        cv2.putText(monitor,name,(x_finger, y),cv2.FONT_HERSHEY_SIMPLEX,0.55,(255, 255, 255),1)
+        cv2.putText(canvas, name, (x_finger, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                    (255, 255, 255), 1)
 
-        
-        cv2.putText(monitor,f"{current:.0f} deg",(x_current, y),cv2.FONT_HERSHEY_SIMPLEX,0.55,(255, 255, 255),1)
+        cv2.putText(canvas, f"{current:.0f}", (x_raw, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                    (255, 255, 255), 1)
 
-       
-        cv2.putText(monitor,f"{close_threshold}",(x_close, y),cv2.FONT_HERSHEY_SIMPLEX,0.55,(255, 255, 255),1)
+        cv2.putText(canvas, f"{close_threshold}", (x_close, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                    (255, 255, 255), 1)
 
-        
-        cv2.putText(monitor,f"{open_threshold}",(x_open, y),cv2.FONT_HERSHEY_SIMPLEX,0.55,(255, 255, 255),1)
+        cv2.putText(canvas, f"{open_threshold}", (x_open, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                    (255, 255, 255), 1)
 
-        
-        cv2.putText(monitor,state_text,(x_state, y),cv2.FONT_HERSHEY_SIMPLEX,0.55,(255, 255, 255),1)
-        
-        y += 35
+        cv2.putText(canvas, state_text, (x_state, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                    (255, 255, 255), 1)
 
-    cv2.imshow("Angle Monitor", monitor)
+        y += 30
+
+    # =========================================================
+    # THRESHOLD CONTROLS
+    # =========================================================
+
+    cv2.line(
+        canvas,
+        (panel_x + 10, panel_y + 260),
+        (dashboard_w - 10, panel_y + 260),
+        (80, 80, 80),
+        1
+    )
+
+    cv2.putText(
+        canvas,
+        "THRESHOLD CONTROLS",
+        (panel_x + 20, panel_y + 290),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA
+    )
+
+    slider_names = [
+        ("Thumb Close", 3, closed_values),
+        ("Index Close", 6, closed_values),
+        ("Middle Close", 10, closed_values),
+        ("Ring Close", 14, closed_values),
+        ("Pinky Close", 18, closed_values),
+
+        ("Thumb Open", 3, open_values),
+        ("Index Open", 6, open_values),
+        ("Middle Open", 10, open_values),
+        ("Ring Open", 14, open_values),
+        ("Pinky Open", 18, open_values)
+    ]
+
+    slider_x1 = panel_x + 145
+    slider_x2 = panel_x + 500
+    slider_start_y = panel_y + 325
+    slider_spacing = 25
+
+    for i, (name, landmark_id, value_dict) in enumerate(slider_names):
+
+        slider_y = slider_start_y + i * slider_spacing
+        value = value_dict[landmark_id]
+
+        cv2.putText(
+            canvas,
+            name,
+            (panel_x + 15, slider_y + 5),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.42,
+            (220, 220, 220),
+            1,
+            cv2.LINE_AA
+        )
+
+        # Slider line
+        cv2.line(
+            canvas,
+            (slider_x1, slider_y),
+            (slider_x2, slider_y),
+            (100, 100, 100),
+            4
+        )
+
+        # Slider position
+        slider_pos = int(
+            slider_x1 + (value / 180) * (slider_x2 - slider_x1)
+        )
+
+        cv2.circle(
+            canvas,
+            (slider_pos, slider_y),
+            7,
+            (0, 255, 255),
+            -1
+        )
+
+        cv2.putText(
+            canvas,
+            f"{value}",
+            (panel_x + 505, slider_y + 5),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
+            (255, 255, 255),
+            1,
+            cv2.LINE_AA
+        )
+
+    # =========================================================
+    # TOP INFORMATION BAR
+    # =========================================================
+
+    cv2.putText(
+        canvas,
+        f"Gesture: {current_gesture.upper()}",
+        (15, 35),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.75,
+        (0, 255, 255),
+        2,
+        cv2.LINE_AA
+    )
+
+    cv2.putText(
+        canvas,
+        f"FPS: {fps:.1f}",
+        (15, 70),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.65,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA
+    )
+
+    cv2.putText(
+        canvas,
+        f"CPU: {process_cpu_share:.1f}% | Raw: {process_cpu:.0f}%",
+        (180, 70),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.65,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA
+    )
+
+    cv2.putText(
+        canvas,
+        f"RAM: {process_ram:.0f} MB ({process_ram_percent:.1f}%)",
+        (500, 70),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.65,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA
+    )
+
+    cv2.putText(
+        canvas,
+        f"PID: {process_pid}",
+        (15, 105),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        (180, 180, 180),
+        1,
+        cv2.LINE_AA
+    )
+
+    # =========================================================
+    # BOTTOM TELEMETRY
+    # =========================================================
+
+    telemetry_smoothed = (
+        f"T:{int(smoothed_angles[3])} "
+        f"I:{int(smoothed_angles[6])} "
+        f"M:{int(smoothed_angles[10])} "
+        f"R:{int(smoothed_angles[14])} "
+        f"P:{int(smoothed_angles[18])}"
+    )
+
+    cv2.putText(
+        canvas,
+        telemetry_smoothed,
+        (15, dashboard_h - 15),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (255, 191, 0),
+        2,
+        cv2.LINE_AA
+    )
+
+    return canvas
+
+
+def dashboard_mouse(event, x, y, flags, param):
+
+    panel_x = frame_w
+
+    slider_x1 = panel_x + 145
+    slider_x2 = panel_x + 500
+
+    slider_start_y = 125 + 325
+    slider_spacing = 25
+
+    slider_names = [
+        ("Thumb Close", 3, closed_values),
+        ("Index Close", 6, closed_values),
+        ("Middle Close", 10, closed_values),
+        ("Ring Close", 14, closed_values),
+        ("Pinky Close", 18, closed_values),
+
+        ("Thumb Open", 3, open_values),
+        ("Index Open", 6, open_values),
+        ("Middle Open", 10, open_values),
+        ("Ring Open", 14, open_values),
+        ("Pinky Open", 18, open_values)
+    ]
+
+    if event == cv2.EVENT_LBUTTONDOWN or event == cv2.EVENT_MOUSEMOVE:
+
+        if event == cv2.EVENT_MOUSEMOVE and not (flags & cv2.EVENT_FLAG_LBUTTON):
+            return
+
+        if slider_x1 <= x <= slider_x2:
+
+            for i, (name, landmark_id, value_dict) in enumerate(slider_names):
+
+                slider_y = slider_start_y + i * slider_spacing
+
+                if abs(y - slider_y) <= 12:
+
+                    value = int(
+                        ((x - slider_x1) /
+                         (slider_x2 - slider_x1)) * 180
+                    )
+
+                    value = max(0, min(180, value))
+
+                    value_dict[landmark_id] = value
+
+                    break
 
 def nothing(z):
     pass
 
 
-cv2.namedWindow("Threshold Controls", cv2.WINDOW_NORMAL)
-cv2.resizeWindow("Threshold Controls", 650, 380)    
+cam = cv2.VideoCapture(1)
 
-# Close thresholds
-cv2.createTrackbar("Thumb Close",  "Threshold Controls", closed_values[3], 180, nothing)
-cv2.createTrackbar("Index Close",  "Threshold Controls", closed_values[6], 180, nothing)
-cv2.createTrackbar("Middle Close", "Threshold Controls", closed_values[10], 180, nothing)
-cv2.createTrackbar("Ring Close",   "Threshold Controls", closed_values[14], 180, nothing)
-cv2.createTrackbar("Pinky Close",  "Threshold Controls", closed_values[18], 180, nothing)
+cv2.namedWindow("Robot Teleoperation Dashboard", cv2.WINDOW_NORMAL)
+cv2.resizeWindow("Robot Teleoperation Dashboard", 1250, 775)
 
-# Open thresholds
-cv2.createTrackbar("Thumb Open",  "Threshold Controls", open_values[3], 180, nothing)
-cv2.createTrackbar("Index Open",  "Threshold Controls", open_values[6], 180, nothing)
-cv2.createTrackbar("Middle Open", "Threshold Controls", open_values[10], 180, nothing)
-cv2.createTrackbar("Ring Open",   "Threshold Controls", open_values[14], 180, nothing)
-cv2.createTrackbar("Pinky Open",  "Threshold Controls", open_values[18], 180, nothing)
-
-cv2.namedWindow("Angle Monitor", cv2.WINDOW_NORMAL)
-cv2.resizeWindow("Angle Monitor", 650, 350)
-
-cam = cv2.VideoCapture(0)
+cv2.setMouseCallback(
+    "Robot Teleoperation Dashboard",
+    dashboard_mouse
+)
 
 finger_states = {3: False, 6: False, 10: False, 14: False, 18: False}
 pinch_states = {8: False, 12: False, 16: False, 20: False}
@@ -362,27 +624,6 @@ while cam.isOpened():
         performance_timer = current_time
 
 
-
-    closed_values[3] = cv2.getTrackbarPos("Thumb Close", "Threshold Controls")
-
-    closed_values[6] = cv2.getTrackbarPos("Index Close", "Threshold Controls")
-
-    closed_values[10] = cv2.getTrackbarPos("Middle Close", "Threshold Controls")
-
-    closed_values[14] = cv2.getTrackbarPos("Ring Close", "Threshold Controls")
-
-    closed_values[18] = cv2.getTrackbarPos("Pinky Close", "Threshold Controls")
-
-
-    open_values[3] = cv2.getTrackbarPos("Thumb Open", "Threshold Controls")
-
-    open_values[6] = cv2.getTrackbarPos("Index Open", "Threshold Controls")
-
-    open_values[10] = cv2.getTrackbarPos("Middle Open", "Threshold Controls")
-
-    open_values[14] = cv2.getTrackbarPos("Ring Open", "Threshold Controls")
-
-    open_values[18] = cv2.getTrackbarPos("Pinky Open", "Threshold Controls")
 
     if not success  :
         break
@@ -495,54 +736,17 @@ while cam.isOpened():
             print(f"Thumb:{signals['thumb_bend']} Index:{signals['index_bend']} Middle:{signals['middle_bend']} Ring:{signals['ring_bend']} Pinky:{signals['pinky_bend']} | Idx-Pinch:{signals['index_pinch']} Mid-Pinch:{signals['middle_pinch']} Ring-Pinch:{signals['ring_pinch']} Pnk-Pinch:{signals['pinky_pinch']} Gesture:{current_gesture}")
 
 
+    canvas = dashboard(frame)
 
-    
-    TOP_BAR_H = 125
-    BOTTOM_BAR_H = 50
-    CANVAS_W = frame_w
-    CANVAS_H = frame_h + TOP_BAR_H + BOTTOM_BAR_H
+    cv2.imshow(
+        "Robot Teleoperation Dashboard",
+        canvas
+    )
 
-    canvas = np.zeros((CANVAS_H, CANVAS_W, 3), dtype=np.uint8)
-    canvas[:] = (35, 35, 35)
-
-
-    canvas[TOP_BAR_H : TOP_BAR_H + frame_h, 0 : CANVAS_W] = frame
-
-
-    cv2.putText(canvas, f"Gesture: {current_gesture.upper()}", (15, 35),  
-                cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 255), 2, cv2.LINE_AA) 
-
-    cv2.putText(canvas, f"FPS: {fps:.1f}", (15, 70), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA) 
-
-    cv2.putText(canvas, f"CPU: {process_cpu_share:.1f}%  |  Raw: {process_cpu:.0f}%", (180, 70), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA) 
-
-    cv2.putText(canvas, f"RAM: {process_ram:.0f} MB ({process_ram_percent:.1f}%)", (500, 70), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA)
-
-    cv2.putText(canvas, f"PID: {process_pid}", (15, 105), 
-            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (180, 180, 180), 1, cv2.LINE_AA)
-
-    # cv2.putText(canvas, f"Python: {process_cpu:.0f}%   Memory: {process_ram:.0f} MB", (400, 70), 
-    #             cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA)    
-
-
-
-    telemetry_raw = f"T:{int(current_angles_raw[3])} I:{int(current_angles_raw[6])} M:{int(current_angles_raw[10])} R:{int(current_angles_raw[14])} P:{int(current_angles_raw[18])}"
-    telemetry = f"T:{int(current_angles[3])} I:{int(current_angles[6])} M:{int(current_angles[10])} R:{int(current_angles[14])} P:{int(current_angles[18])}"
-    telemetry_smoothed = f"T:{int(smoothed_angles[3])} I:{int(smoothed_angles[6])} M:{int(smoothed_angles[10])} R:{int(smoothed_angles[14])} P:{int(smoothed_angles[18])}"
-
-
-
-    cv2.putText(canvas, telemetry_smoothed, (15, CANVAS_H - 15), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 191, 0), 2, cv2.LINE_AA)
-
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
     
 
-    cv2.imshow("Hand Landmark & Finger Angle Tracker", canvas)
-
-    update_angle_monitor()
 
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break

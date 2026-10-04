@@ -1,5 +1,6 @@
 import cv2
 import time
+import psutil
 import numpy as np 
 import math 
 import socket 
@@ -19,7 +20,7 @@ SEND_TO_ESP = True
 
 frame_h = 600
 
-frame_w = 680
+frame_w = 700
 
 base_options = python.BaseOptions(model_asset_path = "hand_landmarker.task")
 
@@ -174,6 +175,112 @@ def gesture_finder(dict):
     else:
         return "Unknown"
 
+
+def update_angle_monitor():
+
+    monitor = np.zeros((300, 650, 3), dtype=np.uint8)
+    monitor[:] = (35, 35, 35)
+
+  
+    cv2.putText(
+        monitor,
+        "ANGLE MONITOR",
+        (20, 35),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA
+    )
+
+    
+    x_finger = 20
+    x_current = 150
+    x_close = 290
+    x_open = 410
+    x_state = 520
+
+    
+    cv2.putText(monitor, "Finger",  (x_finger, 70),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+
+    cv2.putText(monitor, "RAW", (x_current, 70),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+
+    cv2.putText(monitor, "CLOSE",   (x_close, 70),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+
+    cv2.putText(monitor, "OPEN",    (x_open, 70),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+
+    cv2.putText(monitor, "STATE",   (x_state, 70),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+
+    fingers = [
+        ("Thumb", 3),
+        ("Index", 6),
+        ("Middle", 10),
+        ("Ring", 14),
+        ("Pinky", 18)
+    ]
+
+    y = 110
+
+    for name, landmark_id in fingers:
+
+        current = current_angles_raw[landmark_id]
+        close_threshold = closed_values[landmark_id]
+        open_threshold = open_values[landmark_id]
+
+        # False = OPEN
+        # True  = CLOSED
+        state = finger_states[landmark_id]
+
+        state_text = "CLOSED" if state else "OPEN"
+
+        
+        cv2.putText(monitor,name,(x_finger, y),cv2.FONT_HERSHEY_SIMPLEX,0.55,(255, 255, 255),1)
+
+        
+        cv2.putText(monitor,f"{current:.0f} deg",(x_current, y),cv2.FONT_HERSHEY_SIMPLEX,0.55,(255, 255, 255),1)
+
+       
+        cv2.putText(monitor,f"{close_threshold}",(x_close, y),cv2.FONT_HERSHEY_SIMPLEX,0.55,(255, 255, 255),1)
+
+        
+        cv2.putText(monitor,f"{open_threshold}",(x_open, y),cv2.FONT_HERSHEY_SIMPLEX,0.55,(255, 255, 255),1)
+
+        
+        cv2.putText(monitor,state_text,(x_state, y),cv2.FONT_HERSHEY_SIMPLEX,0.55,(255, 255, 255),1)
+        
+        y += 35
+
+    cv2.imshow("Angle Monitor", monitor)
+
+def nothing(z):
+    pass
+
+
+cv2.namedWindow("Threshold Controls", cv2.WINDOW_NORMAL)
+cv2.resizeWindow("Threshold Controls", 650, 380)    
+
+# Close thresholds
+cv2.createTrackbar("Thumb Close",  "Threshold Controls", closed_values[3], 180, nothing)
+cv2.createTrackbar("Index Close",  "Threshold Controls", closed_values[6], 180, nothing)
+cv2.createTrackbar("Middle Close", "Threshold Controls", closed_values[10], 180, nothing)
+cv2.createTrackbar("Ring Close",   "Threshold Controls", closed_values[14], 180, nothing)
+cv2.createTrackbar("Pinky Close",  "Threshold Controls", closed_values[18], 180, nothing)
+
+# Open thresholds
+cv2.createTrackbar("Thumb Open",  "Threshold Controls", open_values[3], 180, nothing)
+cv2.createTrackbar("Index Open",  "Threshold Controls", open_values[6], 180, nothing)
+cv2.createTrackbar("Middle Open", "Threshold Controls", open_values[10], 180, nothing)
+cv2.createTrackbar("Ring Open",   "Threshold Controls", open_values[14], 180, nothing)
+cv2.createTrackbar("Pinky Open",  "Threshold Controls", open_values[18], 180, nothing)
+
+cv2.namedWindow("Angle Monitor", cv2.WINDOW_NORMAL)
+cv2.resizeWindow("Angle Monitor", 650, 350)
+
 cam = cv2.VideoCapture(0)
 
 finger_states = {3: False, 6: False, 10: False, 14: False, 18: False}
@@ -204,8 +311,78 @@ sender_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 last_send_time = 0 
 
+fps = 0.0
+fps_counter = 0
+fps_timer = time.time()
+
+process_cpu = 0.0
+process_cpu_share = 0.0
+process_ram = 0.0
+process_ram_percent = 0.0
+
+performance_timer = time.time()
+
+process = psutil.Process()
+process_pid = process.pid
+
+
+
+logical_cpus = psutil.cpu_count(logical=True)
+
+
+process.cpu_percent(None)
+
 while cam.isOpened():
     success , frame = cam.read()
+
+
+
+    fps_counter += 1
+
+    current_time = time.time()
+
+    if current_time - fps_timer >= 1.0:
+
+        fps = fps_counter / (current_time - fps_timer)
+
+        fps_counter = 0
+        fps_timer = current_time
+
+    if current_time - performance_timer >= 1.0:
+
+        process_cpu = process.cpu_percent(None)
+
+        # Percentage of the entire laptop's CPU capacity
+        process_cpu_share = process_cpu / logical_cpus
+
+        process_ram = process.memory_info().rss / (1024 ** 2)
+
+        process_ram_percent = process.memory_percent()
+
+        performance_timer = current_time
+
+
+
+    closed_values[3] = cv2.getTrackbarPos("Thumb Close", "Threshold Controls")
+
+    closed_values[6] = cv2.getTrackbarPos("Index Close", "Threshold Controls")
+
+    closed_values[10] = cv2.getTrackbarPos("Middle Close", "Threshold Controls")
+
+    closed_values[14] = cv2.getTrackbarPos("Ring Close", "Threshold Controls")
+
+    closed_values[18] = cv2.getTrackbarPos("Pinky Close", "Threshold Controls")
+
+
+    open_values[3] = cv2.getTrackbarPos("Thumb Open", "Threshold Controls")
+
+    open_values[6] = cv2.getTrackbarPos("Index Open", "Threshold Controls")
+
+    open_values[10] = cv2.getTrackbarPos("Middle Open", "Threshold Controls")
+
+    open_values[14] = cv2.getTrackbarPos("Ring Open", "Threshold Controls")
+
+    open_values[18] = cv2.getTrackbarPos("Pinky Open", "Threshold Controls")
 
     if not success  :
         break
@@ -320,7 +497,7 @@ while cam.isOpened():
 
 
     
-    TOP_BAR_H = 100
+    TOP_BAR_H = 125
     BOTTOM_BAR_H = 50
     CANVAS_W = frame_w
     CANVAS_H = frame_h + TOP_BAR_H + BOTTOM_BAR_H
@@ -332,9 +509,24 @@ while cam.isOpened():
     canvas[TOP_BAR_H : TOP_BAR_H + frame_h, 0 : CANVAS_W] = frame
 
 
-                
-    cv2.putText(canvas, f"Gesture: {current_gesture.upper()}", (15, 75), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(canvas, f"Gesture: {current_gesture.upper()}", (15, 35),  
+                cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 255), 2, cv2.LINE_AA) 
+
+    cv2.putText(canvas, f"FPS: {fps:.1f}", (15, 70), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA) 
+
+    cv2.putText(canvas, f"CPU: {process_cpu_share:.1f}%  |  Raw: {process_cpu:.0f}%", (180, 70), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA) 
+
+    cv2.putText(canvas, f"RAM: {process_ram:.0f} MB ({process_ram_percent:.1f}%)", (500, 70), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA)
+
+    cv2.putText(canvas, f"PID: {process_pid}", (15, 105), 
+            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (180, 180, 180), 1, cv2.LINE_AA)
+
+    # cv2.putText(canvas, f"Python: {process_cpu:.0f}%   Memory: {process_ram:.0f} MB", (400, 70), 
+    #             cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA)    
+
 
 
     telemetry_raw = f"T:{int(current_angles_raw[3])} I:{int(current_angles_raw[6])} M:{int(current_angles_raw[10])} R:{int(current_angles_raw[14])} P:{int(current_angles_raw[18])}"
@@ -346,9 +538,11 @@ while cam.isOpened():
     cv2.putText(canvas, telemetry_smoothed, (15, CANVAS_H - 15), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 191, 0), 2, cv2.LINE_AA)
 
-
+    
 
     cv2.imshow("Hand Landmark & Finger Angle Tracker", canvas)
+
+    update_angle_monitor()
 
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break

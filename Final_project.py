@@ -7,7 +7,11 @@ import socket
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+import customtkinter as ctk
+from PIL import Image, ImageTk
 
+print("[DEBUG] Python program started")
+print("[DEBUG] Imports completed")
 
 
 ESP_IP = "192.168.1.5"
@@ -17,17 +21,22 @@ SEND_TO_ESP = True
 
 
 
-
+debug_stage = 0
 
 frame_h = 600
 
 frame_w = 700
+
+print("[DEBUG] Loading MediaPipe model...")
+
 
 base_options = python.BaseOptions(model_asset_path = "hand_landmarker.task")
 
 options = vision.HandLandmarkerOptions(base_options=base_options, num_hands=1,running_mode=vision.RunningMode.VIDEO)
 
 detector = vision.HandLandmarker.create_from_options(options)
+
+print("[DEBUG] MediaPipe model loaded successfully")
 
 mp_drawing = mp.tasks.vision.drawing_utils
 
@@ -192,358 +201,224 @@ def gesture_finder(dict):
         return "Unknown"
 
 
-def dashboard(frame):
 
-    dashboard_w = 1250
-    dashboard_h = 775
 
-    canvas = np.zeros((dashboard_h, dashboard_w, 3), dtype=np.uint8)
-    canvas[:] = (35, 35, 35)
-
-    # =========================================================
-    # CAMERA
-    # =========================================================
-
-    canvas[125 : 125 + frame_h, 0 : frame_w] = frame
-
-    # =========================================================
-    # RIGHT PANEL
-    # =========================================================
-
-    panel_x = frame_w
-    panel_y = 125
-    panel_w = dashboard_w - frame_w
-    panel_h = frame_h
-
-    cv2.rectangle(
-        canvas,
-        (panel_x, panel_y),
-        (dashboard_w, panel_y + panel_h),
-        (45, 45, 45),
-        -1
-    )
-
-    # =========================================================
-    # ANGLE MONITOR
-    # =========================================================
-
-    cv2.putText(
-        canvas,
-        "ANGLE MONITOR",
-        (panel_x + 20, panel_y + 35),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.75,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA
-    )
-
-    x_finger = panel_x + 15
-    x_raw = panel_x + 130
-    x_close = panel_x + 230
-    x_open = panel_x + 325
-    x_state = panel_x + 430
-
-    header_y = panel_y + 70
-
-    cv2.putText(canvas, "Finger", (x_finger, header_y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                (200, 200, 200), 1)
-
-    cv2.putText(canvas, "RAW", (x_raw, header_y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                (200, 200, 200), 1)
-
-    cv2.putText(canvas, "CLOSE", (x_close, header_y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                (200, 200, 200), 1)
-
-    cv2.putText(canvas, "OPEN", (x_open, header_y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                (200, 200, 200), 1)
-
-    cv2.putText(canvas, "STATE", (x_state, header_y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                (200, 200, 200), 1)
-
-    fingers = [
-        ("Thumb", 3),
-        ("Index", 6),
-        ("Middle", 10),
-        ("Ring", 14),
-        ("Pinky", 18)
-    ]
-
-    y = panel_y + 105
-
-    for name, landmark_id in fingers:
-
-        current = current_angles_raw[landmark_id]
-        close_threshold = closed_values[landmark_id]
-        open_threshold = open_values[landmark_id]
-
-        state = finger_states[landmark_id]
-        state_text = "CLOSED" if state else "OPEN"
-
-        cv2.putText(canvas, name, (x_finger, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                    (255, 255, 255), 1)
-
-        cv2.putText(canvas, f"{current:.0f}", (x_raw, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                    (255, 255, 255), 1)
-
-        cv2.putText(canvas, f"{close_threshold}", (x_close, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                    (255, 255, 255), 1)
-
-        cv2.putText(canvas, f"{open_threshold}", (x_open, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                    (255, 255, 255), 1)
-
-        cv2.putText(canvas, state_text, (x_state, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                    (255, 255, 255), 1)
-
-        y += 30
-
-    # =========================================================
-    # THRESHOLD CONTROLS
-    # =========================================================
-
-    cv2.line(
-        canvas,
-        (panel_x + 10, panel_y + 260),
-        (dashboard_w - 10, panel_y + 260),
-        (80, 80, 80),
-        1
-    )
-
-    cv2.putText(
-        canvas,
-        "THRESHOLD CONTROLS",
-        (panel_x + 20, panel_y + 290),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA
-    )
-
-    slider_names = [
-        ("Thumb Close", 3, closed_values),
-        ("Index Close", 6, closed_values),
-        ("Middle Close", 10, closed_values),
-        ("Ring Close", 14, closed_values),
-        ("Pinky Close", 18, closed_values),
-
-        ("Thumb Open", 3, open_values),
-        ("Index Open", 6, open_values),
-        ("Middle Open", 10, open_values),
-        ("Ring Open", 14, open_values),
-        ("Pinky Open", 18, open_values)
-    ]
-
-    slider_x1 = panel_x + 145
-    slider_x2 = panel_x + 500
-    slider_start_y = panel_y + 325
-    slider_spacing = 25
-
-    for i, (name, landmark_id, value_dict) in enumerate(slider_names):
-
-        slider_y = slider_start_y + i * slider_spacing
-        value = value_dict[landmark_id]
-
-        cv2.putText(
-            canvas,
-            name,
-            (panel_x + 15, slider_y + 5),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.42,
-            (220, 220, 220),
-            1,
-            cv2.LINE_AA
-        )
-
-        # Slider line
-        cv2.line(
-            canvas,
-            (slider_x1, slider_y),
-            (slider_x2, slider_y),
-            (100, 100, 100),
-            4
-        )
-
-        # Slider position
-        slider_pos = int(
-            slider_x1 + (value / 180) * (slider_x2 - slider_x1)
-        )
-
-        cv2.circle(
-            canvas,
-            (slider_pos, slider_y),
-            7,
-            (0, 255, 255),
-            -1
-        )
-
-        cv2.putText(
-            canvas,
-            f"{value}",
-            (panel_x + 505, slider_y + 5),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.45,
-            (255, 255, 255),
-            1,
-            cv2.LINE_AA
-        )
-
-    # =========================================================
-    # TOP INFORMATION BAR
-    # =========================================================
-
-    cv2.putText(
-        canvas,
-        f"Gesture: {current_gesture.upper()}",
-        (15, 35),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.75,
-        (0, 255, 255),
-        2,
-        cv2.LINE_AA
-    )
-
-    cv2.putText(
-        canvas,
-        f"FPS: {fps:.1f}",
-        (15, 70),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.65,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA
-    )
-
-    cv2.putText(
-        canvas,
-        f"CPU: {process_cpu_share:.1f}% | Raw: {process_cpu:.0f}%",
-        (180, 70),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.65,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA
-    )
-
-    cv2.putText(
-        canvas,
-        f"RAM: {process_ram:.0f} MB ({process_ram_percent:.1f}%)",
-        (500, 70),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.65,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA
-    )
-
-    cv2.putText(
-        canvas,
-        f"PID: {process_pid}",
-        (15, 105),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.55,
-        (180, 180, 180),
-        1,
-        cv2.LINE_AA
-    )
-
-    # =========================================================
-    # BOTTOM TELEMETRY
-    # =========================================================
-
-    telemetry_smoothed = (
-        f"T:{int(smoothed_angles[3])} "
-        f"I:{int(smoothed_angles[6])} "
-        f"M:{int(smoothed_angles[10])} "
-        f"R:{int(smoothed_angles[14])} "
-        f"P:{int(smoothed_angles[18])}"
-    )
-
-    cv2.putText(
-        canvas,
-        telemetry_smoothed,
-        (15, dashboard_h - 15),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (255, 191, 0),
-        2,
-        cv2.LINE_AA
-    )
-
-    return canvas
-
-
-def dashboard_mouse(event, x, y, flags, param):
-
-    panel_x = frame_w
-
-    slider_x1 = panel_x + 145
-    slider_x2 = panel_x + 500
-
-    slider_start_y = 125 + 325
-    slider_spacing = 25
-
-    slider_names = [
-        ("Thumb Close", 3, closed_values),
-        ("Index Close", 6, closed_values),
-        ("Middle Close", 10, closed_values),
-        ("Ring Close", 14, closed_values),
-        ("Pinky Close", 18, closed_values),
-
-        ("Thumb Open", 3, open_values),
-        ("Index Open", 6, open_values),
-        ("Middle Open", 10, open_values),
-        ("Ring Open", 14, open_values),
-        ("Pinky Open", 18, open_values)
-    ]
-
-    if event == cv2.EVENT_LBUTTONDOWN or event == cv2.EVENT_MOUSEMOVE:
-
-        if event == cv2.EVENT_MOUSEMOVE and not (flags & cv2.EVENT_FLAG_LBUTTON):
-            return
-
-        if slider_x1 <= x <= slider_x2:
-
-            for i, (name, landmark_id, value_dict) in enumerate(slider_names):
-
-                slider_y = slider_start_y + i * slider_spacing
-
-                if abs(y - slider_y) <= 12:
-
-                    value = int(
-                        ((x - slider_x1) /
-                         (slider_x2 - slider_x1)) * 180
-                    )
-
-                    value = max(0, min(180, value))
-
-                    value_dict[landmark_id] = value
-
-                    break
-
-def nothing(z):
-    pass
-
+print("[DEBUG] Starting camera...")
 
 cam = cv2.VideoCapture(1)
 
-cv2.namedWindow("Robot Teleoperation Dashboard", cv2.WINDOW_NORMAL)
-cv2.resizeWindow("Robot Teleoperation Dashboard", 1250, 775)
+if cam.isOpened():
+    print("[DEBUG] Camera opened successfully")
+else:
+    print("[DEBUG] ERROR: Camera failed to open")
 
-cv2.setMouseCallback(
-    "Robot Teleoperation Dashboard",
-    dashboard_mouse
-)
+
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("dark-blue")
+
+print("[DEBUG] Creating CustomTkinter window...")
+
+root = ctk.CTk()
+root.title("Robot Teleoperation")
+
+print("[DEBUG] CustomTkinter window created")
+
+root.geometry("1250x775")
+
+running = True
+
+def quit_program(event=None):
+    global running
+    print("[DEBUG] Q pressed - exiting...")
+    running = False
+
+root.bind("<q>", quit_program)
+
+
+
+
+root.grid_columnconfigure(0, weight=7)
+root.grid_columnconfigure(1, weight=5)
+root.grid_rowconfigure(1, weight=1)
+
+# =========================
+# USER INTERFACE
+# =========================
+
+root.grid_columnconfigure(0, weight=7)
+root.grid_columnconfigure(1, weight=5)
+root.grid_rowconfigure(1, weight=1)
+
+# =========================
+# HEADER
+# =========================
+
+header = ctk.CTkFrame(root)
+header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=(8, 0))
+
+title_label = ctk.CTkLabel(header, text="ROBOT TELEOPERATION", font=ctk.CTkFont(size=22, weight="bold"))
+title_label.grid(row=0, column=0, columnspan=4, pady=(10, 5))
+
+gesture_label = ctk.CTkLabel(header, text="Gesture: NO HAND", font=ctk.CTkFont(size=14, weight="bold"))
+gesture_label.grid(row=1, column=0, padx=20, pady=(0, 10))
+
+fps_label = ctk.CTkLabel(header, text="FPS: 0.0", font=ctk.CTkFont(size=14))
+fps_label.grid(row=1, column=1, padx=20)
+
+cpu_label = ctk.CTkLabel(header, text="CPU: 0.0%", font=ctk.CTkFont(size=14))
+cpu_label.grid(row=1, column=2, padx=20)
+
+ram_label = ctk.CTkLabel(header, text="RAM: 0 MB", font=ctk.CTkFont(size=14))
+ram_label.grid(row=1, column=3, padx=20)
+
+
+# =========================
+# CAMERA
+# =========================
+
+camera_frame = ctk.CTkFrame(root)
+camera_frame.grid(row=1, column=0, padx=(8, 4), pady=8, sticky="nsew")
+
+camera_frame.grid_rowconfigure(0, weight=1)
+camera_frame.grid_columnconfigure(0, weight=1)
+
+camera_label = ctk.CTkLabel(camera_frame, text="Starting camera...")
+camera_label.grid(row=0, column=0, sticky="nsew")
+
+
+# =========================
+# RIGHT PANEL
+# =========================
+
+right_panel = ctk.CTkFrame(root)
+right_panel.grid(row=1, column=1, padx=(4, 8), pady=8, sticky="nsew")
+
+right_panel.grid_columnconfigure(0, weight=1)
+
+
+# =========================
+# FINGER MONITOR
+# =========================
+
+ctk.CTkLabel(right_panel, text="FINGER MONITOR", font=ctk.CTkFont(size=18, weight="bold")).grid(row=0, column=0, padx=15, pady=(12, 8), sticky="w")
+
+monitor_frame = ctk.CTkFrame(right_panel)
+monitor_frame.grid(row=1, column=0, padx=12, pady=(0, 10), sticky="ew")
+
+monitor_frame.grid_columnconfigure(0, weight=2)
+monitor_frame.grid_columnconfigure(1, weight=1)
+monitor_frame.grid_columnconfigure(2, weight=1)
+monitor_frame.grid_columnconfigure(3, weight=1)
+
+ctk.CTkLabel(monitor_frame, text="FINGER", font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, padx=8, pady=6)
+ctk.CTkLabel(monitor_frame, text="RAW", font=ctk.CTkFont(weight="bold")).grid(row=0, column=1, padx=8)
+ctk.CTkLabel(monitor_frame, text="SMOOTH", font=ctk.CTkFont(weight="bold")).grid(row=0, column=2, padx=8)
+ctk.CTkLabel(monitor_frame, text="STATE", font=ctk.CTkFont(weight="bold")).grid(row=0, column=3, padx=8)
+
+finger_labels = {}
+
+for row_index, (name, landmark_id) in enumerate([("Thumb", 3), ("Index", 6), ("Middle", 10), ("Ring", 14), ("Pinky", 18)], start=1):
+
+    ctk.CTkLabel(monitor_frame, text=name, anchor="w").grid(row=row_index, column=0, padx=8, pady=5, sticky="w")
+
+    raw_label = ctk.CTkLabel(monitor_frame, text="180°")
+    raw_label.grid(row=row_index, column=1, padx=8)
+
+    smooth_label = ctk.CTkLabel(monitor_frame, text="180°")
+    smooth_label.grid(row=row_index, column=2, padx=8)
+
+    state_label = ctk.CTkLabel(monitor_frame, text="OPEN")
+    state_label.grid(row=row_index, column=3, padx=8)
+
+    finger_labels[landmark_id] = {
+        "angle": raw_label,
+        "smooth": smooth_label,
+        "state": state_label
+    }
+
+
+# =========================
+# CALIBRATION
+# =========================
+
+ctk.CTkLabel(right_panel, text="CALIBRATION", font=ctk.CTkFont(size=18, weight="bold")).grid(row=2, column=0, padx=15, pady=(5, 8), sticky="w")
+
+calibration_frame = ctk.CTkFrame(right_panel)
+calibration_frame.grid(row=3, column=0, padx=12, pady=(0, 10), sticky="ew")
+
+calibration_frame.grid_columnconfigure(0, weight=1)
+calibration_frame.grid_columnconfigure(1, weight=4)
+calibration_frame.grid_columnconfigure(2, weight=1)
+calibration_frame.grid_columnconfigure(3, weight=4)
+calibration_frame.grid_columnconfigure(4, weight=1)
+
+ctk.CTkLabel(calibration_frame, text="FINGER", font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, padx=5, pady=6)
+
+ctk.CTkLabel(calibration_frame, text="CLOSE", font=ctk.CTkFont(weight="bold")).grid(row=0, column=1, padx=5)
+ctk.CTkLabel(calibration_frame, text="°", font=ctk.CTkFont(weight="bold")).grid(row=0, column=2)
+
+ctk.CTkLabel(calibration_frame, text="OPEN", font=ctk.CTkFont(weight="bold")).grid(row=0, column=3, padx=5)
+ctk.CTkLabel(calibration_frame, text="°", font=ctk.CTkFont(weight="bold")).grid(row=0, column=4)
+
+
+calibration_sliders = {}
+
+for row_index, (name, landmark_id) in enumerate([("Thumb", 3), ("Index", 6), ("Middle", 10), ("Ring", 14), ("Pinky", 18)], start=1):
+
+    ctk.CTkLabel(calibration_frame, text=name).grid(row=row_index, column=0, padx=5, pady=5)
+
+    close_value_label = ctk.CTkLabel(calibration_frame, text=str(closed_values[landmark_id]), width=35)
+    close_value_label.grid(row=row_index, column=2, padx=3)
+
+    open_value_label = ctk.CTkLabel(calibration_frame, text=str(open_values[landmark_id]), width=35)
+    open_value_label.grid(row=row_index, column=4, padx=3)
+
+    calibration_sliders[landmark_id] = {
+        "close_label": close_value_label,
+        "open_label": open_value_label
+    }
+
+
+# =========================
+# SLIDER CALLBACKS
+# =========================
+
+def update_close_value(landmark_id, value):
+
+    value = int(float(value))
+    closed_values[landmark_id] = value
+
+    calibration_sliders[landmark_id]["close_label"].configure(text=str(value))
+
+
+def update_open_value(landmark_id, value):
+
+    value = int(float(value))
+    open_values[landmark_id] = value
+
+    calibration_sliders[landmark_id]["open_label"].configure(text=str(value))
+
+
+for row_index, landmark_id in enumerate([3, 6, 10, 14, 18], start=1):
+
+    close_slider = ctk.CTkSlider(calibration_frame, from_=0, to=180, number_of_steps=180, command=lambda value, landmark_id=landmark_id: update_close_value(landmark_id, value))
+    close_slider.set(closed_values[landmark_id])
+    close_slider.grid(row=row_index, column=1, padx=5, sticky="ew")
+
+    open_slider = ctk.CTkSlider(calibration_frame, from_=0, to=180, number_of_steps=180, command=lambda value, landmark_id=landmark_id: update_open_value(landmark_id, value))
+    open_slider.set(open_values[landmark_id])
+    open_slider.grid(row=row_index, column=3, padx=5, sticky="ew")
+
+
+# =========================
+# FOOTER
+# =========================
+
+footer = ctk.CTkFrame(root)
+footer.grid(row=2, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
+
+telemetry_label = ctk.CTkLabel(footer, text="T:180 I:180 M:180 R:180 P:180", font=ctk.CTkFont(size=14, weight="bold"))
+telemetry_label.pack(pady=8)
 
 finger_states = {3: False, 6: False, 10: False, 14: False, 18: False}
 pinch_states = {8: False, 12: False, 16: False, 20: False}
@@ -573,9 +448,13 @@ sender_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 last_send_time = 0 
 
+debug_loop_count = 0
+
 fps = 0.0
 fps_counter = 0
 fps_timer = time.time()
+
+angle_debug_timer = time.time()
 
 process_cpu = 0.0
 process_cpu_share = 0.0
@@ -594,8 +473,27 @@ logical_cpus = psutil.cpu_count(logical=True)
 
 process.cpu_percent(None)
 
-while cam.isOpened():
+print("[DEBUG] Entering main camera loop...")
+debug_first_frame = True
+
+
+debug_loop_count += 1
+
+if debug_loop_count == 1:
+    print("[DEBUG] Main loop is running")
+
+while cam.isOpened() and running:
     success , frame = cam.read()
+
+    if debug_first_frame:
+
+        if success:
+            print("[DEBUG] Camera frame received successfully")
+        else:
+            print("[DEBUG] ERROR: Camera frame could not be read")
+
+        debug_first_frame = False
+    
 
 
 
@@ -640,7 +538,14 @@ while cam.isOpened():
 
     timestamp_ms = int(time.time() * 1000)
 
+
+    if debug_first_frame:
+        print("[DEBUG] Starting MediaPipe processing...")
+
     result = detector.detect_for_video(mp_img,timestamp_ms)
+
+    if debug_first_frame:
+        print("[DEBUG] MediaPipe processing completed")
 
     if result.hand_world_landmarks:
         for hand_landmarks, hand_world_landmarks in zip(result.hand_landmarks, result.hand_world_landmarks) :
@@ -684,6 +589,28 @@ while cam.isOpened():
 
                     finger_states[landmark_id] = latency_checker(result_angle, closed_values[landmark_id], open_values[landmark_id], finger_states[landmark_id])
 
+                    if time.time() - angle_debug_timer >= 1.0:
+
+                        print(
+                            f"[ANGLE DEBUG] "
+                            f"T:{current_angles_raw[3]:.1f}->{current_angles[3]:.1f}->{smoothed_angles[3]:.1f} "
+                            f"I:{current_angles_raw[6]:.1f}->{current_angles[6]:.1f}->{smoothed_angles[6]:.1f} "
+                            f"M:{current_angles_raw[10]:.1f}->{current_angles[10]:.1f}->{smoothed_angles[10]:.1f} "
+                            f"R:{current_angles_raw[14]:.1f}->{current_angles[14]:.1f}->{smoothed_angles[14]:.1f} "
+                            f"P:{current_angles_raw[18]:.1f}->{current_angles[18]:.1f}->{smoothed_angles[18]:.1f}"
+                        )
+
+                        print(
+                            f"[STATE DEBUG] "
+                            f"T:{'CLOSED' if finger_states[3] else 'OPEN'} "
+                            f"I:{'CLOSED' if finger_states[6] else 'OPEN'} "
+                            f"M:{'CLOSED' if finger_states[10] else 'OPEN'} "
+                            f"R:{'CLOSED' if finger_states[14] else 'OPEN'} "
+                            f"P:{'CLOSED' if finger_states[18] else 'OPEN'}"
+                        )
+
+                        angle_debug_timer = time.time()
+
             smoothed_init = True 
 
             thumb_tip = (hand_world_landmarks[4].x, hand_world_landmarks[4].y, hand_world_landmarks[4].z)
@@ -708,6 +635,8 @@ while cam.isOpened():
             }
 
             current_gesture = gesture_finder(signals)
+
+            print(f"[GESTURE DEBUG] {current_gesture}")
 
 
             mp_drawing.draw_landmarks(frame, hand_landmarks,mp_hands.HAND_CONNECTIONS,mp_drawing_styles.get_default_hand_landmarks_style(),mp_drawing_styles.get_default_hand_connections_style())
@@ -736,22 +665,46 @@ while cam.isOpened():
             print(f"Thumb:{signals['thumb_bend']} Index:{signals['index_bend']} Middle:{signals['middle_bend']} Ring:{signals['ring_bend']} Pinky:{signals['pinky_bend']} | Idx-Pinch:{signals['index_pinch']} Mid-Pinch:{signals['middle_pinch']} Ring-Pinch:{signals['ring_pinch']} Pnk-Pinch:{signals['pinky_pinch']} Gesture:{current_gesture}")
 
 
-    canvas = dashboard(frame)
+    # =========================
+    # UPDATE USER INTERFACE
+    # =========================
 
-    cv2.imshow(
-        "Robot Teleoperation Dashboard",
-        canvas
-    )
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
-    
+    image = Image.fromarray(rgb_frame)
+    photo = ImageTk.PhotoImage(image=image)
+
+    camera_label.configure(image=photo, text="")
+    camera_label.image = photo
+
+    gesture_label.configure(text=f"Gesture: {current_gesture.upper()}")
+    fps_label.configure(text=f"FPS: {fps:.1f}")
+    cpu_label.configure(text=f"CPU: {process_cpu_share:.1f}% | Raw: {process_cpu:.0f}%")
+    ram_label.configure(text=f"RAM: {process_ram:.0f} MB")
+
+    for name, landmark_id in [("Thumb", 3), ("Index", 6), ("Middle", 10), ("Ring", 14), ("Pinky", 18)]:
+
+        finger_labels[landmark_id]["angle"].configure(text=f"{current_angles_raw[landmark_id]:.0f}°")
+        finger_labels[landmark_id]["smooth"].configure(text=f"{smoothed_angles[landmark_id]:.0f}°")
+
+        if finger_states[landmark_id]:
+            finger_labels[landmark_id]["state"].configure(text="CLOSED")
+        else:
+            finger_labels[landmark_id]["state"].configure(text="OPEN")
+    telemetry_label.configure(text=f"T:{int(smoothed_angles[3])} I:{int(smoothed_angles[6])} M:{int(smoothed_angles[10])} R:{int(smoothed_angles[14])} P:{int(smoothed_angles[18])}")
+
+    root.update()
 
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
-
+print("[DEBUG] Shutting down...")
 
 sender_socket.close()
+print("[DEBUG] UDP socket closed")
+
 cam.release()
-cv2.destroyAllWindows()
+print("[DEBUG] Camera released")
+
+root.destroy()
+print("[DEBUG] GUI destroyed")
+
+print("[DEBUG] Program finished")

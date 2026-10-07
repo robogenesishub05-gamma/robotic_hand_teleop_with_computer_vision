@@ -7,8 +7,8 @@ from machine import PWM, Pin
 
 
 
-WIFI_NAME = "Airtel_PATIL_7427"
-WIFI_PASSWORD = "Swami@22010811"
+WIFI_NAME = "Airtel_PATIL_7427" # Sample name, replace it with your own 
+WIFI_PASSWORD = "Swami@22010811" # Sample password, replace it with your own 
 PORT = 5005
 
 

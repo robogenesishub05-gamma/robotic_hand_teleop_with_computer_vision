@@ -149,7 +149,7 @@ With α = 0.3, each new frame contributes 30% and history contributes 70%. That 
 - Higher α → snappier, more jitter.
 - Lower α → smoother, more lag.
 
-The filter is re-seeded with the raw value (`smoothed_init`) the first time a hand appears, so the servos don't slowly crawl in from the last known position.
+The filter is re-seeded with the current mapped servo value (`smoothed_init`) the first time a hand appears, so the servos don't slowly crawl in from the last known position.
 
 ## 6. Finger state and hysteresis
 
@@ -264,8 +264,10 @@ The send rate is limited independently of the camera's FPS, so a fast camera doe
 receive packet
   ├─ 5 valid numbers → write each servo's duty cycle
   ├─ wrong field count → log "malformed packet", ignore
-  └─ 2 s timeout (OSError) → open hand, blink LED 3×
+  └─ any socket OSError (normally the 2 s timeout) → open hand, blink LED 3×
 ```
+
+A packet with five fields where one isn't a number (e.g. `a,1,2,3,4`) raises `ValueError` in `parse_angles()`. That isn't caught, so the loop stops and the board needs a reset (see §16).
 
 **Angle to PWM.** Hobby servos expect a pulse every 20 ms (50 Hz). The pulse width sets the position:
 
@@ -290,7 +292,7 @@ The main branch draws everything with OpenCV onto a single 1250×775 canvas:
 
 Sliders are implemented by hand: `dashboard_mouse()` is registered with `cv2.setMouseCallback`, checks whether the click is within 12 px of a slider's row, and converts the x position to 0–180.
 
-The `ui` branch replaces this with a CustomTkinter window. It has the same information plus a smoothed-angle column, and uses real slider widgets.
+The `ui` branch replaces this with a CustomTkinter window. It has the same information plus a smoothed-angle column, and uses real slider widgets. Note that `ui` branched off before the calibration changes on `main`: it still uses the `angle_min` / `angle_max` mapping, `alpha = 0.2`, a 700×600 frame, camera index 1 and `ESP_IP = 192.168.1.5`, and has no `safe_position`.
 
 ## 12. Configuration reference
 
@@ -307,7 +309,7 @@ All in `Final_project.py`, near the top.
 | `pinch_close`, `pinch_open` | per fingertip | Pinch hysteresis, metres (§7) |
 | `alpha` | 0.3 | EMA smoothing factor (§5) |
 | `safe_position` | all 180 | Servo values sent when no hand is visible |
-| `cv2.VideoCapture(1)` | camera 1 | Webcam index |
+| `cv2.VideoCapture(0)` | camera 0 | Webcam index |
 
 In `main.py`:
 
@@ -330,7 +332,7 @@ The open position is used as the safe state because it puts no load on the tendo
 
 | Symptom | Likely cause / fix |
 |---|---|
-| Black window or `cam.isOpened()` false | Wrong camera index. Try `VideoCapture(0)`. |
+| Black window or `cam.isOpened()` false | Wrong camera index. Try `VideoCapture(1)` (or another index) if the default camera isn't the one you want. |
 | `RuntimeError` loading the model | `hand_landmarker.task` isn't in the working directory. |
 | Servos don't move, dashboard works | Check `ESP_IP` matches the IP printed on the ESP32 serial console. Both devices must be on the same network. Run with `SEND_TO_ESP = False` to confirm packets are being generated. |
 | ESP32 LED blinks 3× repeatedly | No packets are arriving. Same checks as above, plus check the Windows firewall isn't blocking outbound UDP from Python. |
@@ -353,7 +355,8 @@ The open position is used as the safe state because it puts no load on the tendo
 ## 16. Known issues
 
 - `print("RAW: ...")` runs for every joint on every frame, which slows the loop slightly and floods the console. It should be behind a debug flag.
-- `angle_min`, `angle_max` and `angle_finder_thumb()` are left over from earlier experiments and are unused.
+- `angle_min`, `angle_max`, `servo_closed`, `servo_open`, `angle_finder_thumb()` and `nothing()` are left over from earlier experiments and are unused.
+- In `main.py`, a five-field packet containing a non-number crashes the receive loop (`ValueError` from `float()` isn't caught). Catching `ValueError` alongside the malformed-packet case would fix it.
 - Threshold changes made with the sliders are lost when the program exits.
 - Wi-Fi credentials are hard-coded in `main.py`. They should be moved to a separate file that's listed in `.gitignore`.
 - Only the thumb's IP joint is measured, so thumb abduction/opposition isn't reproduced.

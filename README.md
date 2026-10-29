@@ -37,7 +37,7 @@ MediaPipe is used **only** for hand tracking (the 21 landmarks). Joint-angle mat
 - Finger flexion measured from 3D world landmarks, so it holds up when the hand moves closer or further from the camera
 - Hysteresis on every open/closed and pinch decision, so states don't flicker at the boundary
 - Exponential moving average on servo angles to remove jitter before it reaches the motors
-- 11 recognised gestures: Open Palm, Fist, Point, Peace, Thumbs Up, Rock On, Call, British Three, German Three, Pinch, and one rude one
+- 11 recognised gestures: Open Palm, Fist, Point, Peace, Thumbs Up, Rock On, Call, British Three, German Three, Pinch (shown as "Pinch/Beautiful"), and one rude one
 - Live dashboard: camera feed, raw angles, per-finger state, FPS, process CPU and RAM
 - Threshold sliders you can drag while the program is running, which makes calibration quick
 - Fail-safe on both ends: the hand opens fully if tracking is lost, or if the ESP32 stops receiving packets for 2 s
@@ -74,7 +74,7 @@ landmark_reader.py      minimal script that prints raw landmarks, handy for debu
 docs/DOCUMENTATION.md   full technical write-up
 ```
 
-The `ui` branch has an alternative front-end built with CustomTkinter (proper widgets and sliders instead of the OpenCV-drawn dashboard). The detection pipeline is the same.
+The `ui` branch has an alternative front-end built with CustomTkinter (proper widgets and sliders instead of the OpenCV-drawn dashboard). It branched off before the latest calibration changes, so its pipeline is older than `main`'s: it still maps angles with `angle_min` / `angle_max`, uses `alpha = 0.2`, a 700×600 frame and camera index 1, and has its own `ESP_IP`.
 
 ## Getting started
 
@@ -109,7 +109,7 @@ ESP_PORT = 5005
 SEND_TO_ESP = True         # False = dry run, prints packets instead of sending
 ```
 
-Also check the camera index: `cv2.VideoCapture(1)` uses the second camera. Change it to `0` for a laptop's built-in webcam.
+Also check the camera index: `cv2.VideoCapture(0)` uses the default (usually built-in) webcam. Change it to `1` for a second / USB camera.
 
 ### 4. Run
 

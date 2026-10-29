@@ -10,7 +10,7 @@ from mediapipe.tasks.python import vision
 
 
 
-ESP_IP = "192.168.1.5"
+ESP_IP = "192.168.1.2"
 ESP_PORT = 5005
 
 SEND_TO_ESP = True
@@ -18,10 +18,9 @@ SEND_TO_ESP = True
 
 
 
+frame_h = 480
 
-frame_h = 600
-
-frame_w = 700
+frame_w = 640
 
 base_options = python.BaseOptions(model_asset_path = "hand_landmarker.task")
 
@@ -38,16 +37,43 @@ mp_drawing_styles = mp.tasks.vision.drawing_styles
 angle_joints = [3,6,10,14,18]
 tips = [8,12,16,20]
 
-# landmark_look = mp_drawing.DrawingSpec(
-#     color=(255, 255, 0),   
-#     thickness=5,
-#     circle_radius=2
-# )
 
-# connections_look = mp_drawing.DrawingSpec(
-#     color=(0, 0, 255),  
-#     thickness=3
-# )
+
+servo_closed = {
+    3: 20,
+    6: 20,
+    10: 20,
+    14: 20,
+    18: 20
+}
+
+servo_open = {
+    3: 150,
+    6: 150,
+    10: 150,
+    14: 150,
+    18: 150
+}
+
+
+
+
+angle_open = {
+    3: 158,
+    6: 171,
+    10: 144,
+    14: 161,
+    18: 166
+}
+
+angle_closed = {
+    3: 115,
+    6: 93,
+    10: 88,
+    14: 93,
+    18: 101
+}
+
 
 open_values = {3: 155, 6: 142, 10: 140, 14: 150, 18: 152}
 closed_values = {3: 145, 6: 133, 10: 122, 14: 138, 18: 140}
@@ -75,6 +101,24 @@ def angle_finder(joint,n1,n2):
 
     return deg_angle
 
+def angle_finder_thumb(joint,n1,n2):
+    v1 = ((n1[0] - joint[0]) , (n1[1] - joint[1]))
+    v2 = ((n2[0] - joint[0]) , (n2[1] - joint[1]))
+
+    dot = (v1[0] * v2[0]) + (v1[1] * v2[1])
+
+    m1 = math.sqrt((v1[0] ** 2) + (v1[1] ** 2))
+    m2 = math.sqrt((v2[0] ** 2) + (v2[1] ** 2))
+
+    cos = dot / (m1 * m2)
+    cos = max(-1.0, min(1.0, cos))
+
+    rad_angle = math.acos(cos)
+    deg_angle = math.degrees(rad_angle)
+
+    return deg_angle
+
+
 
 def dist_finder(p1,p2):
     dist = math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2 + (p1[2] - p2[2]) ** 2 )
@@ -90,7 +134,7 @@ def latency_checker(val , close_thresh , open_thresh , current_state):
 
 def gesture_finder(dict):
 
-    # Open Palm
+    
     if (dict["thumb_bend"] == False and
         dict["index_bend"] == False and
         dict["middle_bend"] == False and
@@ -101,7 +145,7 @@ def gesture_finder(dict):
         return "Open Palm"
 
 
-    # Fist
+    
     elif (dict["thumb_bend"] == True and
         dict["index_bend"] == True and
         dict["middle_bend"] == True and
@@ -111,7 +155,7 @@ def gesture_finder(dict):
         return "Fist"
 
 
-    # Point
+    
     elif (dict["thumb_bend"] == True and
         dict["index_bend"] == False and
         dict["middle_bend"] == True and
@@ -121,7 +165,7 @@ def gesture_finder(dict):
         return "Point"
 
 
-    # Peace
+    
     elif (dict["thumb_bend"] == True and
         dict["index_bend"] == False and
         dict["middle_bend"] == False and
@@ -146,7 +190,7 @@ def gesture_finder(dict):
 
         return "German Three"
 
-    # Thumbs Up
+    
     elif (dict["thumb_bend"] == False and
         dict["index_bend"] == True and
         dict["middle_bend"] == True and
@@ -155,7 +199,7 @@ def gesture_finder(dict):
 
         return "Thumbs Up"
 
-    # Middle Finger
+    
     elif (dict["thumb_bend"] == True and
         dict["index_bend"] == True and
         dict["middle_bend"] == False and
@@ -165,7 +209,7 @@ def gesture_finder(dict):
         return "No bad words"
 
 
-    # rock on 
+    
     elif(dict["thumb_bend"] == True and
         dict["index_bend"] == False and
         dict["middle_bend"] == True and
@@ -174,7 +218,7 @@ def gesture_finder(dict):
 
         return "Rock On"
     
-    # Call
+    
     elif(dict["thumb_bend"] == False and
         dict["index_bend"] == True and
         dict["middle_bend"] == True and
@@ -183,7 +227,7 @@ def gesture_finder(dict):
 
         return "Call"
     
-    # Index Finger Pinch
+    
     elif (dict["index_pinch"] == True):
 
         return "Pinch/Beautiful"
@@ -200,15 +244,15 @@ def dashboard(frame):
     canvas = np.zeros((dashboard_h, dashboard_w, 3), dtype=np.uint8)
     canvas[:] = (35, 35, 35)
 
-    # =========================================================
-    # CAMERA
-    # =========================================================
+    
+    
+    
 
     canvas[125 : 125 + frame_h, 0 : frame_w] = frame
 
-    # =========================================================
-    # RIGHT PANEL
-    # =========================================================
+    
+    
+    
 
     panel_x = frame_w
     panel_y = 125
@@ -223,9 +267,9 @@ def dashboard(frame):
         -1
     )
 
-    # =========================================================
-    # ANGLE MONITOR
-    # =========================================================
+    
+    
+    
 
     cv2.putText(
         canvas,
@@ -307,9 +351,9 @@ def dashboard(frame):
 
         y += 30
 
-    # =========================================================
-    # THRESHOLD CONTROLS
-    # =========================================================
+    
+    
+    
 
     cv2.line(
         canvas,
@@ -365,7 +409,7 @@ def dashboard(frame):
             cv2.LINE_AA
         )
 
-        # Slider line
+        
         cv2.line(
             canvas,
             (slider_x1, slider_y),
@@ -374,7 +418,7 @@ def dashboard(frame):
             4
         )
 
-        # Slider position
+        
         slider_pos = int(
             slider_x1 + (value / 180) * (slider_x2 - slider_x1)
         )
@@ -398,9 +442,9 @@ def dashboard(frame):
             cv2.LINE_AA
         )
 
-    # =========================================================
-    # TOP INFORMATION BAR
-    # =========================================================
+    
+    
+    
 
     cv2.putText(
         canvas,
@@ -457,9 +501,9 @@ def dashboard(frame):
         cv2.LINE_AA
     )
 
-    # =========================================================
-    # BOTTOM TELEMETRY
-    # =========================================================
+    
+    
+    
 
     telemetry_smoothed = (
         f"T:{int(smoothed_angles[3])} "
@@ -535,7 +579,7 @@ def nothing(z):
     pass
 
 
-cam = cv2.VideoCapture(1)
+cam = cv2.VideoCapture(0)
 
 cv2.namedWindow("Robot Teleoperation Dashboard", cv2.WINDOW_NORMAL)
 cv2.resizeWindow("Robot Teleoperation Dashboard", 1250, 775)
@@ -564,9 +608,17 @@ current_gesture = "NO HAND"
 current_angles_raw = {3: 0.0, 6: 0.0, 10: 0.0, 14: 0.0, 18: 0.0}
 current_angles = {3: 0.0, 6: 0.0, 10: 0.0, 14: 0.0, 18: 0.0}
 
-alpha = 0.2
+alpha = 0.3
 smoothed_angles = {}
 smoothed_init = False
+
+safe_position = {
+    3: 180,
+    6: 180,
+    10: 180,
+    14: 180,
+    18: 180
+}
 
 
 sender_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) 
@@ -614,7 +666,7 @@ while cam.isOpened():
 
         process_cpu = process.cpu_percent(None)
 
-        # Percentage of the entire laptop's CPU capacity
+        
         process_cpu_share = process_cpu / logical_cpus
 
         process_ram = process.memory_info().rss / (1024 ** 2)
@@ -646,8 +698,8 @@ while cam.isOpened():
         for hand_landmarks, hand_world_landmarks in zip(result.hand_landmarks, result.hand_world_landmarks) :
             for landmark_id , landmark in enumerate(hand_world_landmarks):
                 if landmark_id in angle_joints:
-                    # pixel_x = int(landmark.x*w)
-                    # pixel_y = int(landmark.y*h)   
+                    
+                    
 
                     j_cords = ((landmark.x) , (landmark.y) , (landmark.z))
 
@@ -659,21 +711,64 @@ while cam.isOpened():
 
                     n2_cords = ((landmark_n2.x) , (landmark_n2.y) , (landmark_n2.z))
 
-                    # ±1 is safe here because 3,6,10,14,18 all sit inside a single finger's block, away from finger boundaries 
+
+                    # if landmark_id == 3:
+                    #     print(
+                    #         "THUMB:",
+                    #         "2=", tuple(round(x,3) for x in (landmark_n2.x, landmark_n2.y, landmark_n2.z)),
+                    #         "3=", tuple(round(x,3) for x in (j_cords[0], j_cords[1], j_cords[2])),
+                    #         "4=", tuple(round(x,3) for x in (landmark_n1.x, landmark_n1.y, landmark_n1.z))
+                    #     )
+
+                    
+                    # if landmark_id == 3:
+                    #     result_angle = angle_finder_thumb(j_cords,n1_cords,n2_cords)
+
+                    # else :
+                    #     result_angle =  angle_finder(j_cords,n1_cords,n2_cords)
 
                     result_angle =  angle_finder(j_cords,n1_cords,n2_cords)
 
+                    # Index DIP angle
+                    # if landmark_id == 6:
+                    #     dip_joint = hand_world_landmarks[7]
+                    #     dip_n1 = hand_world_landmarks[6]
+                    #     dip_n2 = hand_world_landmarks[8]
+
+                    #     dip_cords = (dip_joint.x, dip_joint.y, dip_joint.z)
+                    #     dip_n1_cords = (dip_n1.x, dip_n1.y, dip_n1.z)
+                    #     dip_n2_cords = (dip_n2.x, dip_n2.y, dip_n2.z)
+
+                    #     dip_angle = angle_finder(dip_cords,dip_n1_cords,dip_n2_cords)
+
+                    #     print("INDEX PIP:", round(result_angle,1), "DIP:", round(dip_angle,1))
+
+                    # if landmark_id == 3:
+                    #     print("THUMB RAW:", round(result_angle, 1))
+
+                    print("RAW:", landmark_id, result_angle)
+
+
+
+
                     current_angles_raw[landmark_id] = result_angle
 
-                    in_min = angle_min[landmark_id]
-                    in_max = angle_max[landmark_id]
 
-                    out_min = 0
-                    out_max = 180
 
-                    fraction = (result_angle - in_min) / (in_max - in_min)
-                    output = out_min + fraction * (out_max - out_min)
+                    closed = angle_closed[landmark_id]
+                    opened = angle_open[landmark_id]
+
+
+
+                    fraction = (result_angle - closed) / (opened - closed)
+                    output = fraction * 180
                     output = max(0, min(180, output))
+
+                    # print("FINGER:", landmark_id, "RAW:", round(result_angle, 1), "SERVO:", round(output, 1))
+
+                    # print(f"{landmark_id}:{result_angle:.1f}", end="  ")
+
+
 
                     current_angles[landmark_id] = output
 
@@ -712,14 +807,15 @@ while cam.isOpened():
 
             mp_drawing.draw_landmarks(frame, hand_landmarks,mp_hands.HAND_CONNECTIONS,mp_drawing_styles.get_default_hand_landmarks_style(),mp_drawing_styles.get_default_hand_connections_style())
 
-            # mp_drawing.draw_landmarks(frame, hand_landmarks,mp_hands.HAND_CONNECTIONS, landmark_look, connections_look )
+            
 
     else :
         print("No Hand Detected")
         current_gesture = "NO HAND"
         current_angles_raw = {3: 180.0, 6: 180.0, 10: 180.0, 14: 180.0, 18: 180.0}
         current_angles = {3: 180.0, 6: 180.0, 10: 180.0, 14: 180.0, 18: 180.0}
-        smoothed_angles = {3: 180.0, 6: 180.0, 10: 180.0, 14: 180.0, 18: 180.0}
+        # smoothed_angles = {3: 180.0, 6: 180.0, 10: 180.0, 14: 180.0, 18: 180.0}
+        smoothed_angles = safe_position.copy()
         smoothed_init = False
 
     msg = f"{smoothed_angles[3]:.1f},{smoothed_angles[6]:.1f},{smoothed_angles[10]:.1f},{smoothed_angles[14]:.1f},{smoothed_angles[18]:.1f}"
@@ -735,23 +831,19 @@ while cam.isOpened():
             print(f"The following message would have been sent to the ESP : {msg}")
             print(f"Thumb:{signals['thumb_bend']} Index:{signals['index_bend']} Middle:{signals['middle_bend']} Ring:{signals['ring_bend']} Pinky:{signals['pinky_bend']} | Idx-Pinch:{signals['index_pinch']} Mid-Pinch:{signals['middle_pinch']} Ring-Pinch:{signals['ring_pinch']} Pnk-Pinch:{signals['pinky_pinch']} Gesture:{current_gesture}")
 
+    
 
-    canvas = dashboard(frame)
-
-    cv2.imshow(
-        "Robot Teleoperation Dashboard",
-        canvas
-    )
-
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
     
 
 
+    canvas = dashboard(frame)
+    cv2.imshow("Robot Teleoperation Dashboard", canvas)
+
+
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 
-
+    
 sender_socket.close()
 cam.release()
 cv2.destroyAllWindows()

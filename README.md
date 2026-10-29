@@ -134,16 +134,15 @@ More detail, including the maths, is in [`docs/DOCUMENTATION.md`](docs/DOCUMENTA
 
 - One hand only (`num_hands=1`).
 - The thumb is measured at a single joint (IP), so thumb opposition isn't captured.
-- UDP has no acknowledgement. A dropped packet is simply replaced by the next one 33 ms later, which in practice is what you want for teleoperation.
+- The link is one-way: the ESP32 never replies, so the laptop can’t tell if the robot is connected or how many packets are lost. It also accepts packets from any device on the network.
 - Wi-Fi credentials and the ESP32 IP are hard-coded for now.
 
-## Roadmap
+## Roadmap/Future implementation plans
 
-- Move credentials and IP into a config file that isn't committed
 - Thumb CMC/MCP angle for better thumb motion
 - Record and replay gesture sequences
 - Per-user calibration saved to disk
 
 ## Author
 
-Varad
+Varad S. Patil

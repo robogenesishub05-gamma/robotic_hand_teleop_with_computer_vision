@@ -10,7 +10,7 @@ from mediapipe.tasks.python import vision
 
 
 
-ESP_IP = "192.168.1.2"
+ESP_IP = "192.168.1.6"
 ESP_PORT = 5005
 
 SEND_TO_ESP = True

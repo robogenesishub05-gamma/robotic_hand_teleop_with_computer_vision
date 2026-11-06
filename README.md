@@ -2,6 +2,10 @@
 
 Control a 5-servo robotic hand with your own hand, using nothing but a webcam.
 
+<p align="center">
+  <img src="docs/images/hand_front.jpg" alt="3D-printed robotic hand with the ESP32 in front of it" width="420">
+</p>
+
 The laptop tracks your hand with MediaPipe, works out how bent each finger is, recognises a small set of gestures, and streams servo angles to an ESP32 over Wi-Fi. The ESP32 drives one servo per finger, so the robotic hand mirrors yours in real time.
 
 MediaPipe is used **only** for hand tracking (the 21 landmarks). Joint-angle math, open/closed detection, pinch detection, gesture classification, smoothing and the angle-to-servo mapping are all written from scratch in this repo. The built-in MediaPipe Gesture Recognizer is not used.
@@ -64,6 +68,20 @@ Servo signal pins on the ESP32:
 
 Tie the servo supply ground to the ESP32 ground.
 
+## Photos
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/hand_servos_visible.jpg" alt="Robotic hand with the five servos visible in the forearm" width="260"><br><sub>Assembled hand, servos in the forearm</sub></td>
+    <td align="center"><img src="docs/images/hand_front_2.jpg" alt="Robotic hand, front view" width="260"><br><sub>Front view</sub></td>
+    <td align="center"><img src="docs/images/hand_top_view.jpg" alt="Robotic hand from above on a cutting mat" width="260"><br><sub>Top view</sub></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="docs/images/forearm_servos.jpg" alt="Close-up of the five servos and tendons inside the forearm" width="540"><br><sub>Five servos pulling the finger tendons</sub></td>
+    <td align="center"><img src="docs/images/hand_flat_layout.jpg" alt="Robotic hand lying flat with the forearm open" width="260"><br><sub>Forearm open</sub></td>
+  </tr>
+</table>
+
 ## Repository layout
 
 ```
@@ -72,6 +90,7 @@ main.py                 MicroPython firmware for the ESP32 (hardware side)
 hand_landmarker.task    MediaPipe hand landmark model
 landmark_reader.py      minimal script that prints raw landmarks, handy for debugging
 docs/DOCUMENTATION.md   full technical write-up
+docs/images/            photos of the hand used in this README
 ```
 
 The `ui` branch has an alternative front-end built with CustomTkinter (proper widgets and sliders instead of the OpenCV-drawn dashboard). It branched off before the latest calibration changes, so its pipeline is older than `main`'s: it still maps angles with `angle_min` / `angle_max`, uses `alpha = 0.2`, a 700×600 frame and camera index 1, and has its own `ESP_IP`.

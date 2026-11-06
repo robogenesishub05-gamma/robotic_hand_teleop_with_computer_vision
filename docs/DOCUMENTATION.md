@@ -111,7 +111,7 @@ A straight finger gives roughly 180° (the two bones point in opposite direction
 
 Before calling `acos`, the cosine is clamped to [-1, 1]. Floating-point error can push it to 1.0000001, and `math.acos` throws on anything outside that range.
 
-Because the vectors are 3D and in metres, the angle doesn't change when the hand moves towards or away from the camera, and it's mostly unaffected by rotating the hand. A 2D version (`angle_finder_thumb`) exists from an earlier experiment with the thumb but isn't used.
+Because the vectors are 3D and in metres, the angle doesn't change when the hand moves towards or away from the camera, and it's mostly unaffected by rotating the hand.
 
 ## 4. Angle-to-servo mapping
 
@@ -263,11 +263,14 @@ The send rate is limited independently of the camera's FPS, so a fast camera doe
 ```
 receive packet
   ├─ 5 valid numbers → write each servo's duty cycle
-  ├─ wrong field count → log "malformed packet", ignore
+  ├─ wrong field count, a non-number (e.g. `a,1,2,3,4`) or non-text bytes
+  │     → log "malformed packet", ignore
   └─ any socket OSError (normally the 2 s timeout) → open hand, blink LED 3×
 ```
 
-A packet with five fields where one isn't a number (e.g. `a,1,2,3,4`) raises `ValueError` in `parse_angles()`. That isn't caught, so the loop stops and the board needs a reset (see §16).
+`parse_angles()` catches `ValueError` / `UnicodeError` and returns `None`, so a bad packet is logged and skipped instead of stopping the loop.
+
+**Wi-Fi details.** `main.py` imports `WIFI_NAME` and `WIFI_PASSWORD` from `wifi_config.py`, a separate file on the board that's listed in `.gitignore`. `wifi_config_example.py` is the template. If `wifi_config.py` is missing, the firmware falls back to placeholder values, prints a warning, and the Wi-Fi connection fails (LED blinks twice).
 
 **Angle to PWM.** Hobby servos expect a pulse every 20 ms (50 Hz). The pulse width sets the position:
 
@@ -292,6 +295,8 @@ The main branch draws everything with OpenCV onto a single 1250×775 canvas:
 
 Sliders are implemented by hand: `dashboard_mouse()` is registered with `cv2.setMouseCallback`, checks whether the click is within 12 px of a slider's row, and converts the x position to 0–180.
 
+Slider values are saved to `thresholds.json` by `save_thresholds()` when the program exits with `q`, and `load_thresholds()` reads them back at startup. If the file is missing or unreadable, the defaults in the code are used. The file is in `.gitignore` because it's specific to your hand and camera.
+
 The `ui` branch replaces this with a CustomTkinter window. It has the same information plus a smoothed-angle column, and uses real slider widgets. Note that `ui` branched off before the calibration changes on `main`: it still uses the `angle_min` / `angle_max` mapping, `alpha = 0.2`, a 700×600 frame, camera index 1 and `ESP_IP = 192.168.1.5`, and has no `safe_position`.
 
 ## 12. Configuration reference
@@ -300,9 +305,11 @@ All in `Final_project.py`, near the top.
 
 | Name | Default | Purpose |
 |---|---|---|
-| `ESP_IP` | `192.168.1.2` | ESP32 address |
+| `ESP_IP` | `192.168.1.6` | ESP32 address |
 | `ESP_PORT` | `5005` | UDP port, must match `PORT` in `main.py` |
 | `SEND_TO_ESP` | `True` | `False` prints packets instead of sending |
+| `DEBUG` | `False` | `True` prints raw joint angles and "No Hand Detected" every frame |
+| `THRESHOLDS_FILE` | `thresholds.json` | Where slider thresholds are saved and loaded |
 | `frame_w`, `frame_h` | 640, 480 | Processing resolution |
 | `angle_open`, `angle_closed` | per finger | Servo mapping calibration (§4) |
 | `open_values`, `closed_values` | per finger | Bend-state hysteresis (§6) |
@@ -315,7 +322,7 @@ In `main.py`:
 
 | Name | Purpose |
 |---|---|
-| `WIFI_NAME`, `WIFI_PASSWORD` | Network credentials |
+| `WIFI_NAME`, `WIFI_PASSWORD` | Network credentials, read from `wifi_config.py` |
 | `PORT` | UDP listen port |
 | servo pin list | GPIO for each finger |
 
@@ -354,9 +361,6 @@ The open position is used as the safe state because it puts no load on the tendo
 
 ## 16. Known issues
 
-- `print("RAW: ...")` runs for every joint on every frame, which slows the loop slightly and floods the console. It should be behind a debug flag.
-- `angle_min`, `angle_max`, `servo_closed`, `servo_open`, `angle_finder_thumb()` and `nothing()` are left over from earlier experiments and are unused.
-- In `main.py`, a five-field packet containing a non-number crashes the receive loop (`ValueError` from `float()` isn't caught). Catching `ValueError` alongside the malformed-packet case would fix it.
-- Threshold changes made with the sliders are lost when the program exits.
-- Wi-Fi credentials are hard-coded in `main.py`. They should be moved to a separate file that's listed in `.gitignore`.
+- Slider thresholds are only saved on a normal exit with `q`. Closing the terminal or pressing Ctrl+C skips the save.
+- The servo calibration (`angle_open` / `angle_closed`) is still edited by hand in the code.
 - Only the thumb's IP joint is measured, so thumb abduction/opposition isn't reproduced.

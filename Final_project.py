@@ -3,7 +3,9 @@ import time
 import psutil
 import numpy as np 
 import math 
-import socket 
+import socket
+import json
+import os
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -15,7 +17,9 @@ ESP_PORT = 5005
 
 SEND_TO_ESP = True
 
+DEBUG = False   # True = print raw joint angles and "No Hand Detected" every frame
 
+THRESHOLDS_FILE = "thresholds.json"
 
 
 frame_h = 480
@@ -36,25 +40,6 @@ mp_drawing_styles = mp.tasks.vision.drawing_styles
 
 angle_joints = [3,6,10,14,18]
 tips = [8,12,16,20]
-
-
-
-servo_closed = {
-    3: 20,
-    6: 20,
-    10: 20,
-    14: 20,
-    18: 20
-}
-
-servo_open = {
-    3: 150,
-    6: 150,
-    10: 150,
-    14: 150,
-    18: 150
-}
-
 
 
 
@@ -81,8 +66,26 @@ closed_values = {3: 145, 6: 133, 10: 122, 14: 138, 18: 140}
 pinch_close = {8: 0.030, 12: 0.035, 16: 0.025, 20: 0.030}
 pinch_open = {8: 0.055, 12: 0.060, 16: 0.050, 20: 0.055}
 
-angle_min = {3: 115, 6: 95, 10: 90, 14: 95, 18: 95}
-angle_max = {3: 180, 6: 175, 10: 165, 14: 177, 18: 172}
+
+def load_thresholds():
+    if not os.path.exists(THRESHOLDS_FILE):
+        return
+    try:
+        with open(THRESHOLDS_FILE) as f:
+            saved = json.load(f)
+        for joint in angle_joints:
+            closed_values[joint] = int(saved["closed"][str(joint)])
+            open_values[joint] = int(saved["open"][str(joint)])
+        print(f"Loaded slider thresholds from {THRESHOLDS_FILE}")
+    except (OSError, ValueError, KeyError) as e:
+        print(f"Could not read {THRESHOLDS_FILE}, using defaults ({e})")
+
+
+def save_thresholds():
+    with open(THRESHOLDS_FILE, "w") as f:
+        json.dump({"closed": closed_values, "open": open_values}, f, indent=2)
+    print(f"Saved slider thresholds to {THRESHOLDS_FILE}")
+
 
 def angle_finder(joint,n1,n2):
     v1 = ((n1[0] - joint[0]) , (n1[1] - joint[1]) , (n1[2] - joint[2]))
@@ -100,25 +103,6 @@ def angle_finder(joint,n1,n2):
     deg_angle = math.degrees(rad_angle)
 
     return deg_angle
-
-def angle_finder_thumb(joint,n1,n2):
-    v1 = ((n1[0] - joint[0]) , (n1[1] - joint[1]))
-    v2 = ((n2[0] - joint[0]) , (n2[1] - joint[1]))
-
-    dot = (v1[0] * v2[0]) + (v1[1] * v2[1])
-
-    m1 = math.sqrt((v1[0] ** 2) + (v1[1] ** 2))
-    m2 = math.sqrt((v2[0] ** 2) + (v2[1] ** 2))
-
-    cos = dot / (m1 * m2)
-    cos = max(-1.0, min(1.0, cos))
-
-    rad_angle = math.acos(cos)
-    deg_angle = math.degrees(rad_angle)
-
-    return deg_angle
-
-
 
 def dist_finder(p1,p2):
     dist = math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2 + (p1[2] - p2[2]) ** 2 )
@@ -575,9 +559,8 @@ def dashboard_mouse(event, x, y, flags, param):
 
                     break
 
-def nothing(z):
-    pass
 
+load_thresholds()
 
 cam = cv2.VideoCapture(0)
 
@@ -720,12 +703,6 @@ while cam.isOpened():
                     #         "4=", tuple(round(x,3) for x in (landmark_n1.x, landmark_n1.y, landmark_n1.z))
                     #     )
 
-                    
-                    # if landmark_id == 3:
-                    #     result_angle = angle_finder_thumb(j_cords,n1_cords,n2_cords)
-
-                    # else :
-                    #     result_angle =  angle_finder(j_cords,n1_cords,n2_cords)
 
                     result_angle =  angle_finder(j_cords,n1_cords,n2_cords)
 
@@ -746,7 +723,8 @@ while cam.isOpened():
                     # if landmark_id == 3:
                     #     print("THUMB RAW:", round(result_angle, 1))
 
-                    print("RAW:", landmark_id, result_angle)
+                    if DEBUG:
+                        print("RAW:", landmark_id, result_angle)
 
 
 
@@ -810,7 +788,8 @@ while cam.isOpened():
             
 
     else :
-        print("No Hand Detected")
+        if DEBUG:
+            print("No Hand Detected")
         current_gesture = "NO HAND"
         current_angles_raw = {3: 180.0, 6: 180.0, 10: 180.0, 14: 180.0, 18: 180.0}
         current_angles = {3: 180.0, 6: 180.0, 10: 180.0, 14: 180.0, 18: 180.0}
@@ -843,7 +822,8 @@ while cam.isOpened():
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 
-    
+
+save_thresholds()
 sender_socket.close()
 cam.release()
 cv2.destroyAllWindows()

@@ -7,8 +7,14 @@ from machine import PWM, Pin
 
 
 
-WIFI_NAME = "YOUR_WIFI_NAME" # replace it with your own 
-WIFI_PASSWORD = "YOUR_WIFI_PASSWORD" # replace it with your own 
+# Wi-Fi details live in wifi_config.py on the board (not committed to git).
+# Copy wifi_config_example.py to wifi_config.py, fill it in, and upload it next to main.py.
+try:
+    from wifi_config import WIFI_NAME, WIFI_PASSWORD
+except ImportError:
+    WIFI_NAME = "YOUR_WIFI_NAME"
+    WIFI_PASSWORD = "YOUR_WIFI_PASSWORD"
+    print("wifi_config.py not found, using placeholder Wi-Fi details")
 PORT = 5005
 
 
@@ -40,12 +46,16 @@ def duty_cycle_value(angle):
     return int((pulse_ms / 20.0) * 65535)
 
 def parse_angles(msg):
-    msg = msg.decode('utf-8').strip()
-    angle_strings = msg.split(',')
-    if len(angle_strings) == 5 :
-        angles_list = [float(x) for x in angle_strings]
-        return angles_list
-    else:
+    try:
+        msg = msg.decode('utf-8').strip()
+        angle_strings = msg.split(',')
+        if len(angle_strings) == 5 :
+            angles_list = [float(x) for x in angle_strings]
+            return angles_list
+        else:
+            return None
+    except (ValueError, UnicodeError):
+        # non-numeric field or bytes that aren't text: treat as malformed instead of crashing
         return None
 
     

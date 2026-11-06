@@ -87,6 +87,7 @@ Tie the servo supply ground to the ESP32 ground.
 ```
 Final_project.py        main teleoperation program (laptop side)
 main.py                 MicroPython firmware for the ESP32 (hardware side)
+wifi_config_example.py  template for wifi_config.py (your Wi-Fi details, not committed)
 hand_landmarker.task    MediaPipe hand landmark model
 landmark_reader.py      minimal script that prints raw landmarks, handy for debugging
 docs/DOCUMENTATION.md   full technical write-up
@@ -114,8 +115,8 @@ pip install customtkinter pillow
 ### 2. ESP32
 
 1. Flash MicroPython onto the board.
-2. Open `main.py` and set `WIFI_NAME` / `WIFI_PASSWORD` for your network.
-3. Upload it to the board as `main.py` (Thonny works fine) and reset.
+2. Copy `wifi_config_example.py` to `wifi_config.py` and set `WIFI_NAME` / `WIFI_PASSWORD` for your network. `wifi_config.py` is in `.gitignore`, so your password never gets committed.
+3. Upload `main.py` and `wifi_config.py` to the board (Thonny works fine) and reset.
 4. The serial console prints the IP the board got. The onboard LED blinks once if Wi-Fi connected, twice if it didn't.
 
 ### 3. Point the laptop at the ESP32
@@ -123,9 +124,10 @@ pip install customtkinter pillow
 At the top of `Final_project.py`:
 
 ```python
-ESP_IP = "192.168.1.2"     # the IP printed by the ESP32
+ESP_IP = "192.168.1.6"     # the IP printed by the ESP32
 ESP_PORT = 5005
 SEND_TO_ESP = True         # False = dry run, prints packets instead of sending
+DEBUG = False              # True = print raw joint angles to the console every frame
 ```
 
 Also check the camera index: `cv2.VideoCapture(0)` uses the default (usually built-in) webcam. Change it to `1` for a second / USB camera.
@@ -145,7 +147,7 @@ Everyone's hand (and camera angle) is a bit different, so expect to tune a few n
 1. Run with `SEND_TO_ESP = False`.
 2. Fully open and then fully close your hand and watch the **RAW** column in the dashboard.
 3. Put those values into `angle_open` / `angle_closed`. They set the range that gets stretched to 0–180° for the servos.
-4. Drag the **Close/Open** sliders until each finger's state switches cleanly. These are the hysteresis thresholds and they only affect gesture detection, not servo motion.
+4. Drag the **Close/Open** sliders until each finger's state switches cleanly. These are the hysteresis thresholds and they only affect gesture detection, not servo motion. They're saved to `thresholds.json` when you press `q` and loaded again on the next run.
 
 More detail, including the maths, is in [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md).
 
@@ -154,13 +156,13 @@ More detail, including the maths, is in [`docs/DOCUMENTATION.md`](docs/DOCUMENTA
 - One hand only (`num_hands=1`).
 - The thumb is measured at a single joint (IP), so thumb opposition isn't captured.
 - The link is one-way: the ESP32 never replies, so the laptop can’t tell if the robot is connected or how many packets are lost. It also accepts packets from any device on the network.
-- Wi-Fi credentials and the ESP32 IP are hard-coded for now.
+- The ESP32 IP is set by hand in `Final_project.py`.
 
 ## Roadmap/Future implementation plans
 
 - Thumb CMC/MCP angle for better thumb motion
 - Record and replay gesture sequences
-- Per-user calibration saved to disk
+- Save the servo calibration (`angle_open` / `angle_closed`) to disk too, not just the slider thresholds
 
 ## Author
 

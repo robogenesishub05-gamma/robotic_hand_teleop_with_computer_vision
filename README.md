@@ -52,7 +52,7 @@ MediaPipe is used **only** for hand tracking (the 21 landmarks). Joint-angle mat
 |---|---|
 | ESP32 dev board | Flashed with MicroPython |
 | 5 × hobby servos (SG90 / MG90S) | One per finger |
-| Tendon-driven robotic hand | 3D printed |
+| Tendon-driven robotic hand | 3D printed, STL files in [`3d_files/`](3d_files/) |
 | External 5 V supply | Servos must **not** be powered from the ESP32's 3.3 V/5 V pins |
 | Webcam | Built-in or USB |
 
@@ -92,6 +92,7 @@ hand_landmarker.task    MediaPipe hand landmark model
 landmark_reader.py      minimal script that prints raw landmarks, handy for debugging
 docs/DOCUMENTATION.md   full technical write-up
 docs/images/            photos of the hand used in this README
+3d_files/               STL files for the printed hand, fingers, forearm and cover
 ```
 
 The `ui` branch has an alternative front-end built with CustomTkinter (proper widgets and sliders instead of the OpenCV-drawn dashboard). It branched off before the latest calibration changes, so its pipeline is older than `main`'s: it still maps angles with `angle_min` / `angle_max`, uses `alpha = 0.2`, a 700×600 frame and camera index 1, and has its own `ESP_IP`.
